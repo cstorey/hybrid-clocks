@@ -10,7 +10,7 @@ use std::fmt;
 //
 
 trait ClockSource {
-    type Time : Ord + Copy + fmt::Debug;
+    type Time : Ord + Copy;
     fn now(&mut self) -> Self::Time;
 }
 
@@ -41,13 +41,11 @@ impl<S: ClockSource> Clock<S> {
             0
         };
 
-        println!("recv@{:?} → {:?}", pt, self.latest);
         self.latest
     }
     pub fn on_recv(&mut self, msg: &Timestamp<S::Time>) -> Timestamp<S::Time> {
         let pt = self.src.now();
         let lp = self.latest.clone();
-        println!("recv@{:?}: {:?}: ← {:?}", pt, lp, msg);
 
         self.latest.0 = cmp::max(lp.0, msg.0);
         self.latest.1 = match (self.latest.0 == lp.0, self.latest.0 == msg.0) {
@@ -57,7 +55,6 @@ impl<S: ClockSource> Clock<S> {
             (false, false) => 0,
         };
 
-        println!("recv@{:?}: {:?} → {:?}", pt, lp, self.latest);
         self.latest.clone()
     }
 }
