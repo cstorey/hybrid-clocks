@@ -19,6 +19,8 @@ pub struct Timestamp<T>(T, u32);
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
 pub struct Wall;
+#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
+pub struct WallT(time::Timespec);
 
 pub struct Clock<S: ClockSource> {
     src: S,
@@ -68,10 +70,35 @@ impl<S: ClockSource> Clock<S> {
     }
 }
 
+impl<T> Timestamp<T> {
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl WallT {
+    pub fn as_tm(self) -> time::Timespec {
+        self.0
+    }
+}
+
+
 impl ClockSource for Wall {
-    type Time = time::Timespec;
+    type Time = WallT;
     fn now(&mut self) -> Self::Time {
-        time::get_time()
+        WallT(time::get_time())
+    }
+}
+
+impl fmt::Display for WallT {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}.{:9}", self.0.sec, self.0.nsec)
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Timestamp<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}+{}", self.0, self.1)
     }
 }
 
