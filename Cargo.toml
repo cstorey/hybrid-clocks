@@ -1,0 +1,9 @@
+[package]
+authors = ["Ceri Storey <cez@necrofish.org.uk>"]
+description = "Hybrid Logical Clocks"
+name = "hlc"
+version = "0.1.0"
+
+[dependencies]
+quickcheck = "0.2.27"
+time = "0.1.35"
