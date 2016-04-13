@@ -122,11 +122,28 @@ mod tests {
         assert_eq!(clock.on_send(), Timestamp(10, 4))
     }
 
-
     #[test]
     fn all_sources_same() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         assert_eq!(clock.on_recv(&Timestamp(0, 5)), Timestamp(0, 6))
+    }
+
+    #[test]
+    fn handles_time_going_backwards_on_send() {
+        let src = ManualClock(Cell::new(10));
+        let mut clock = Clock::new(&src);
+        let _ = clock.on_send();
+        src.0.set(9);
+        assert_eq!(clock.on_send(), Timestamp(10, 2))
+    }
+
+    #[test]
+    fn handles_time_going_backwards_on_recv() {
+        let src = ManualClock(Cell::new(10));
+        let mut clock = Clock::new(&src);
+        let _ = clock.on_send();
+        src.0.set(9);
+        assert_eq!(clock.on_recv(&Timestamp(0, 0)), Timestamp(10, 2))
     }
 }
