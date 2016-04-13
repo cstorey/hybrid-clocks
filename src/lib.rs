@@ -9,17 +9,26 @@ use std::fmt;
 // and Consistent Snapshots in Globally Distributed Databases".
 //
 
-trait ClockSource {
+pub trait ClockSource {
     type Time : Ord + Copy;
     fn now(&mut self) -> Self::Time;
 }
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
-struct Timestamp<T>(T, u32);
+pub struct Timestamp<T>(T, u32);
 
-struct Clock<S: ClockSource> {
+#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
+pub struct Wall;
+
+pub struct Clock<S: ClockSource> {
     src: S,
     latest: Timestamp<S::Time>,
+}
+
+impl Clock<Wall> {
+    pub fn wall() -> Clock<Wall> {
+        Clock::new(Wall)
+    }
 }
 
 impl<S: ClockSource> Clock<S> {
@@ -59,6 +68,12 @@ impl<S: ClockSource> Clock<S> {
     }
 }
 
+impl ClockSource for Wall {
+    type Time = time::Timespec;
+    fn now(&mut self) -> Self::Time {
+        time::get_time()
+    }
+}
 
 #[cfg(test)]
 mod tests {
