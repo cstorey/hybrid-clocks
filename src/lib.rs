@@ -47,7 +47,7 @@ impl<S: ClockSource> Clock<S> {
         let pt = self.src.now();
         let lp = self.latest.clone();
 
-        self.latest.0 = cmp::max(lp.0, msg.0);
+        self.latest.0 = cmp::max(cmp::max(lp.0, msg.0), pt);
         self.latest.1 = match (self.latest.0 == lp.0, self.latest.0 == msg.0) {
             (true, true) => cmp::max(self.latest.1, msg.1) + 1,
             (true, false) => self.latest.1 + 1,
@@ -142,5 +142,23 @@ mod tests {
         let _ = clock.on_send();
         src.0.set(9);
         assert_eq!(clock.on_recv(&Timestamp(0, 0)), Timestamp(10, 2))
+    }
+
+    #[test]
+    fn handles_time_going_forwards_on_send() {
+        let src = ManualClock(Cell::new(10));
+        let mut clock = Clock::new(&src);
+        let _ = clock.on_send();
+        src.0.set(12);
+        assert_eq!(clock.on_send(), Timestamp(12, 0))
+    }
+
+    #[test]
+    fn handles_time_going_forwards_on_recv() {
+        let src = ManualClock(Cell::new(10));
+        let mut clock = Clock::new(&src);
+        let _ = clock.on_send();
+        src.0.set(12);
+        assert_eq!(clock.on_recv(&Timestamp(0, 0)), Timestamp(12, 0))
     }
 }
