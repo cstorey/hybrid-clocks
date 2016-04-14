@@ -1,4 +1,4 @@
-extern crate hlc;
+extern crate cr_hlc as hlc;
 extern crate time;
 use hlc::Clock;
 use std::thread::sleep;
