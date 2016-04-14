@@ -2,6 +2,11 @@ extern crate time;
 #[cfg(test)]
 extern crate quickcheck;
 
+#[cfg(feature = "serde")]
+extern crate serde;
+#[cfg(all(feature = "serde", test))]
+extern crate serde_json;
+
 use std::cmp;
 use std::fmt;
 
@@ -101,6 +106,9 @@ impl<T: fmt::Display> fmt::Display for Timestamp<T> {
         write!(fmt, "{}+{}", self.0, self.1)
     }
 }
+
+#[cfg(feature = "serde")]
+mod serde_impl;
 
 #[cfg(test)]
 mod tests {
@@ -202,5 +210,19 @@ mod tests {
         let _ = clock.on_send();
         src.0.set(12);
         assert_eq!(clock.on_recv(&Timestamp(0, 0)), Timestamp(12, 0))
+    }
+
+    #[cfg(feature = "serde")]
+    mod serde {
+        use serde_json;
+        use Clock;
+        #[test]
+        fn wall_timestamps_can_be_serialized() {
+            let mut wall = Clock::wall();
+            let ts = wall.on_send();
+            let s = serde_json::to_string(&ts).expect("to-json");
+            let ts2 = serde_json::from_str(&s).expect("from-json");
+            assert_eq!(ts, ts2);
+        }
     }
 }

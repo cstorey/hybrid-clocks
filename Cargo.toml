@@ -7,3 +7,13 @@ version = "0.1.0"
 [dependencies]
 quickcheck = "0.2.27"
 time = "0.1.35"
+
+[dependencies.serde]
+optional = true
+version = "0.7.0"
+
+[dev-dependencies]
+serde_json = "0.7.0"
+
+[features]
+# serde = ["serde_json"]
