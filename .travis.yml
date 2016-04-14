@@ -10,8 +10,6 @@ rust:
 cache:
   directories:
     - $HOME/.cargo
-    - $HOME/lib
-    - $HOME/include
     - target
 
 install:
@@ -23,20 +21,14 @@ before_script:
     export PATH=$HOME/.local/bin:$PATH
 
 env:
-  global:
-    - LIBRARY_PATH=$HOME/lib
-    - LD_LIBRARY_PATH=$HOME/lib
-    # override the default `--features unstable` used for the nightly branch (optional)
-    - TRAVIS_CARGO_NIGHTLY_FEATURE=nightly
+  - TRAVIS_CARGO_NIGHTLY_FEATURE=""
+  - TRAVIS_CARGO_NIGHTLY_FEATURE="" EXTRA='--features serde'
 
 script:
-- travis-cargo build
-- travis-cargo test
+- travis-cargo build $EXTRA
+- travis-cargo test $EXTRA
 
 matrix:
     allow_failures:
         - rust: nightly
         - rust: beta
-    env:
-      - FEATURES=""
-      - FEATURES="--feature serde"
