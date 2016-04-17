@@ -5,6 +5,7 @@ name = "cr-hlc"
 version = "0.1.0"
 
 [dependencies]
+byteorder = "0.5.1"
 quickcheck = "0.2.27"
 time = "0.1.35"
 
