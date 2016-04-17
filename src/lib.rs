@@ -128,7 +128,8 @@ impl ClockSource for Wall {
 
 impl fmt::Display for WallT {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", time::at_utc(self.as_ts()).rfc3339())
+        let tm = time::at_utc(self.as_ts());
+        write!(fmt, "{}", tm.strftime("%Y-%m-%dT%H:%M:%S.%fZ").expect("strftime"))
     }
 }
 
