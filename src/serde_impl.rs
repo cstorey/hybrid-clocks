@@ -102,18 +102,14 @@ impl ser::Serialize for WallT {
                 match self.state {
                     0usize => {
                         self.state += 1;
-                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.0.sec))))
-                    }
-                    1usize => {
-                        self.state += 1;
-                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.0.nsec))))
+                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.0))))
                     }
                     _ => Ok(None),
                 }
             }
             #[inline]
             fn len(&self) -> Option<usize> {
-                Some(2usize)
+                Some(1usize)
             }
         }
 
@@ -146,22 +142,13 @@ impl de::Deserialize for WallT {
                             return Err(de::Error::end_of_stream());
                         }
                     };
-                    let field1 = match try!(visitor.visit()) {
-                        Some(value) => value,
-                        None => {
-                            return Err(de::Error::end_of_stream());
-                        }
-                    };
                     try!(visitor.end());
-                    Ok(WallT(time::Timespec {
-                        sec: field0,
-                        nsec: field1,
-                    }))
+                    Ok(WallT(field0))
                 }
             }
         }
         deserializer.deserialize_tuple_struct("WallT",
-                                              2usize,
+                                              1usize,
                                               Visitor::<D>(::std::marker::PhantomData))
     }
 }
