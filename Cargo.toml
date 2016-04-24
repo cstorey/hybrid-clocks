@@ -17,4 +17,8 @@ version = "0.7.0"
 serde_json = "0.7.0"
 
 [features]
-# serde = ["serde_json"]
+
+[profile]
+
+[profile.release]
+debug = true
