@@ -19,11 +19,11 @@ impl<T: ser::Serialize> ser::Serialize for Timestamp<T> {
                 match self.state {
                     0usize => {
                         self.state += 1;
-                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.0))))
+                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.time))))
                     }
                     1usize => {
                         self.state += 1;
-                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.1))))
+                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.count))))
                     }
                     _ => Ok(None),
                 }
@@ -74,7 +74,7 @@ impl<T: de::Deserialize> de::Deserialize for Timestamp<T> {
                         }
                     };
                     try!(visitor.end());
-                    Ok(Timestamp(field0, field1))
+                    Ok(Timestamp { time: field0, count: field1 })
                 }
             }
         }
