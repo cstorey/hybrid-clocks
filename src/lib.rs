@@ -25,8 +25,8 @@ pub trait ClockSource {
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
 pub struct Timestamp<T> {
-    time: T,
-    count: u32,
+    pub time: T,
+    pub count: u32,
 }
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
