@@ -23,7 +23,7 @@ pub trait ClockSource {
     fn now(&mut self) -> Self::Time;
 }
 
-#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
+#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord, Hash)]
 pub struct Timestamp<T> {
     pub time: T,
     pub count: u32,
@@ -31,7 +31,7 @@ pub struct Timestamp<T> {
 
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
 pub struct Wall;
-#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
+#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord,Hash)]
 // Nanoseconds since unix epoch
 pub struct WallT(u64);
 
