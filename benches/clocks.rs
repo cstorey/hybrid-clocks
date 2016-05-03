@@ -1,11 +1,11 @@
 #![feature(test)]
 extern crate test;
-extern crate cr_hlc;
+extern crate hybrid_clocks;
 extern crate byteorder;
 
 use std::io::Cursor;
 use std::default::Default;
-use cr_hlc::{Clock};
+use hybrid_clocks::{Clock};
 
 #[bench]
 fn sending( b: &mut test::Bencher )  { 
