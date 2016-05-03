@@ -1,3 +1,9 @@
+//! Implementation of Hybrid Logical Clocks.
+//!
+//! This is based on the paper "Logical Physical Clocks and Consistent
+//! Snapshots in Globally Distributed Databases". Provides a
+//! strictly-monotonic clock that can be used to determine if one event
+
 extern crate time;
 extern crate byteorder;
 #[cfg(test)]
@@ -14,39 +20,53 @@ use std::io;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 
-// Implementation of Hybrid Logical Clocks, based on the paper "Logical Physical Clocks
-// and Consistent Snapshots in Globally Distributed Databases".
-//
-
+/// Describes the interface that the inner clock source must provide.
 pub trait ClockSource {
+    /// Represents the described clock time.
     type Time : Ord + Copy;
+    /// Returns the current clock time.
     fn now(&mut self) -> Self::Time;
 }
 
+/// A value that represents a logical timestamp.
+///
+/// These allow us to describe at least a partial ordering over events, in the
+/// same style as Lamport Clocks. In summary, if `a < b` then we can say that `a` logically
+/// `happens-before` `b`. Because they are scalar values, they can't be used to tell between whether:
+///
+///  * `a` happenned concurrently with `b`, or
+///  * `a` is part of `b`'s causal history, or vica-versa.
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord, Hash)]
 pub struct Timestamp<T> {
+    /// The wall-clock time as returned by the clock source
     pub time: T,
+    /// A Lamport clock used to disambiguate events that are given the same
+    /// wall-clock time. This is reset whenever `time` is incremented.
     pub count: u32,
 }
 
+/// A clock source that returns wall-clock in nanoseconds.
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
 pub struct Wall;
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord,Hash)]
-// Nanoseconds since unix epoch
+/// Nanoseconds since unix epoch
 pub struct WallT(u64);
 
+/// The main clock type.
 pub struct Clock<S: ClockSource> {
     src: S,
     latest: Timestamp<S::Time>,
 }
 
 impl Clock<Wall> {
+    /// Returns a `Clock` that uses wall-clock time.
     pub fn wall() -> Clock<Wall> {
         Clock::new(Wall)
     }
 }
 
 impl<S: ClockSource> Clock<S> {
+    /// Creates a clock with `src` as the time provider.
     pub fn new(mut src: S) -> Self {
         let init = src.now();
         Clock {
@@ -55,6 +75,7 @@ impl<S: ClockSource> Clock<S> {
         }
     }
 
+    /// Creates a unique monotonic timestamp suitable for annotating messages we send.
     pub fn on_send(&mut self) -> Timestamp<S::Time> {
         let pt = self.src.now();
         let lp = self.latest.clone();
@@ -68,6 +89,9 @@ impl<S: ClockSource> Clock<S> {
         self.latest
     }
 
+    /// Accepts a timestamp from an incoming message, and creates a timestamp
+    /// that represents when it arrived; guaranteeing that the input
+    /// `happens-before` the returned value.
     pub fn on_recv(&mut self, msg: &Timestamp<S::Time>) -> Timestamp<S::Time> {
         let pt = self.src.now();
         let lp = self.latest.clone();
@@ -81,12 +105,6 @@ impl<S: ClockSource> Clock<S> {
         };
 
         self.latest.clone()
-    }
-}
-
-impl<T> Timestamp<T> {
-    pub fn into_inner(self) -> T {
-        self.time
     }
 }
 
@@ -110,16 +128,19 @@ impl Timestamp<WallT> {
 const NANOS_PER_SEC : u64 = 1000_000_000;
 
 impl WallT {
-    pub fn as_ts(self) -> time::Timespec {
+    /// Returns a `time::Timespec` representing this timestamp.
+    pub fn as_timespec(self) -> time::Timespec {
         let secs = self.0 / NANOS_PER_SEC;
         let nsecs = self.0 % NANOS_PER_SEC;
         time::Timespec { sec: secs as i64, nsec: nsecs as i32 }
     }
 
-    fn from_ts(t: time::Timespec) -> Self {
+    /// Returns a `WallT` representing the `time::Timespec`.
+    fn from_timespec(t: time::Timespec) -> Self {
         WallT(t.sec as u64 * NANOS_PER_SEC + t.nsec as u64)
     }
 
+    /// Returns time in nanoseconds since the unix epoch.
     pub fn as_u64(self) -> u64 {
         self.0
     }
@@ -129,13 +150,13 @@ impl WallT {
 impl ClockSource for Wall {
     type Time = WallT;
     fn now(&mut self) -> Self::Time {
-        WallT::from_ts(time::get_time())
+        WallT::from_timespec(time::get_time())
     }
 }
 
 impl fmt::Display for WallT {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let tm = time::at_utc(self.as_ts());
+        let tm = time::at_utc(self.as_timespec());
         write!(fmt, "{}", tm.strftime("%Y-%m-%dT%H:%M:%S.%fZ").expect("strftime"))
     }
 }
