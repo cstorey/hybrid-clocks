@@ -4,6 +4,7 @@ description = "Hybrid Logical Clocks"
 name = "hybrid-clocks"
 version = "0.1.0"
 homepage = "https://github.com/cstorey/hybrid-clocks"
+license = "MIT"
 
 [dependencies]
 byteorder = "0.5.1"
