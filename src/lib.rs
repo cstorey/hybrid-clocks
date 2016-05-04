@@ -135,7 +135,6 @@ impl<S: ClockSource> Clock<S> {
         let pt = self.read_pt();
         try!(self.verify_offset(&pt, msg));
         self.do_observe(&msg);
-        self.do_observe(&pt);
         Ok(())
     }
 
@@ -269,7 +268,7 @@ mod tests {
 
     fn observing<'a>(clock: &mut Clock<&'a ManualClock>, msg: &Timestamp<u64>) -> Result<Timestamp<u64>, super::Error> {
         try!(clock.observe(msg));
-        Ok(clock.last_observed)
+        Ok(clock.now())
     }
 
     #[test]
