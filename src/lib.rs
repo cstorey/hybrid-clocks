@@ -105,7 +105,7 @@ impl<S: ClockSource> Clock<S> {
     }
 
     /// Creates a unique monotonic timestamp suitable for annotating messages we send.
-    pub fn on_send(&mut self) -> Timestamp<S::Time> {
+    pub fn now(&mut self) -> Timestamp<S::Time> {
         let pt = self.src.now();
         let lp = self.latest.clone();
         println!("pt: {:?}; latest: {:?}; cmp:{:?}", pt, lp, lp.time.cmp(&pt));
@@ -129,7 +129,7 @@ impl<S: ClockSource> Clock<S> {
     /// `happens-before` the returned value. Returns an Error iff the delta
     /// from our latest to the observed timestamp is greater than our
     /// configured limit.
-    pub fn on_recv(&mut self, msg: &Timestamp<S::Time>) -> Result<Timestamp<S::Time>, Error> {
+    pub fn observing(&mut self, msg: &Timestamp<S::Time>) -> Result<Timestamp<S::Time>, Error> {
         let pt = self.src.now();
         let lp = self.latest.clone();
 
@@ -275,23 +275,23 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         src.0.set(10);
-        assert_eq!(clock.on_send(), Timestamp { time: 10, count: 0 })
+        assert_eq!(clock.now(), Timestamp { time: 10, count: 0 })
     }
 
     #[test]
     fn fig_6_proc_1_a() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        assert_eq!(clock.on_recv(&Timestamp { time: 10, count: 0 }).unwrap(), Timestamp { time: 10, count: 1 })
+        assert_eq!(clock.observing(&Timestamp { time: 10, count: 0 }).unwrap(), Timestamp { time: 10, count: 1 })
     }
 
     #[test]
     fn fig_6_proc_1_b() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        let _ = clock.on_recv(&Timestamp { time: 10, count: 0 }).unwrap();
+        let _ = clock.observing(&Timestamp { time: 10, count: 0 }).unwrap();
         src.0.set(2);
-        assert_eq!(clock.on_send(), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.now(), Timestamp { time: 10, count: 2 })
     }
 
     #[test]
@@ -300,7 +300,7 @@ mod tests {
         let mut clock = Clock::new(&src);
         clock.latest = Timestamp { time: 1, count: 0 };
         src.0.set(2);
-        assert_eq!(clock.on_recv(&Timestamp { time: 10, count: 2 }).unwrap(), Timestamp { time: 10, count: 3 })
+        assert_eq!(clock.observing(&Timestamp { time: 10, count: 2 }).unwrap(), Timestamp { time: 10, count: 3 })
     }
 
     #[test]
@@ -308,63 +308,63 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         src.0.set(2);
-        let _ = clock.on_recv(&Timestamp { time: 10, count: 2 }).unwrap();
+        let _ = clock.observing(&Timestamp { time: 10, count: 2 }).unwrap();
         src.0.set(3);
-        assert_eq!(clock.on_send(), Timestamp { time: 10, count: 4 })
+        assert_eq!(clock.now(), Timestamp { time: 10, count: 4 })
     }
 
     #[test]
     fn all_sources_same() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 5 }).unwrap(), Timestamp { time: 0, count: 6 })
+        assert_eq!(clock.observing(&Timestamp { time: 0, count: 5 }).unwrap(), Timestamp { time: 0, count: 6 })
     }
 
     #[test]
-    fn handles_time_going_backwards_on_send() {
+    fn handles_time_going_backwards_now() {
         let src = ManualClock(Cell::new(10));
         let mut clock = Clock::new(&src);
-        let _ = clock.on_send();
+        let _ = clock.now();
         src.0.set(9);
-        assert_eq!(clock.on_send(), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.now(), Timestamp { time: 10, count: 2 })
     }
 
     #[test]
-    fn handles_time_going_backwards_on_recv() {
+    fn handles_time_going_backwards_observing() {
         let src = ManualClock(Cell::new(10));
         let mut clock = Clock::new(&src);
-        let _ = clock.on_send();
+        let _ = clock.now();
         src.0.set(9);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.observing(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 10, count: 2 })
     }
 
     #[test]
-    fn handles_time_going_forwards_on_send() {
+    fn handles_time_going_forwards_now() {
         let src = ManualClock(Cell::new(10));
         let mut clock = Clock::new(&src);
-        let t = clock.on_send();
+        let t = clock.now();
         println!("at 10: {}", t);
         src.0.set(12);
-        let t2 = clock.on_send();
+        let t2 = clock.now();
         println!("=> 12: {}", t2);
         assert_eq!(t2, Timestamp { time: 12, count: 0 })
     }
 
     #[test]
-    fn handles_time_going_forwards_on_recv() {
+    fn handles_time_going_forwards_observing() {
         let src = ManualClock(Cell::new(10));
         let mut clock = Clock::new(&src);
-        let _ = clock.on_send();
+        let _ = clock.now();
         src.0.set(12);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 12, count: 0 })
+        assert_eq!(clock.observing(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 12, count: 0 })
     }
 
     #[test]
     fn should_ignore_clocks_too_far_forward() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new_with_max_diff(&src, 10);
-        assert!(clock.on_recv(&Timestamp { time: 11, count: 0 }).is_err());
-        assert_eq!(clock.on_recv(&Timestamp { time: 1, count: 0 }).unwrap(), Timestamp { time: 1, count: 1 })
+        assert!(clock.observing(&Timestamp { time: 11, count: 0 }).is_err());
+        assert_eq!(clock.observing(&Timestamp { time: 1, count: 0 }).unwrap(), Timestamp { time: 1, count: 1 })
     }
 
     #[test]
@@ -372,7 +372,7 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new_with_max_diff(&src, 10);
         src.0.set(1);
-        assert!(clock.on_recv(&Timestamp { time: 11, count: 0 }).is_ok());
+        assert!(clock.observing(&Timestamp { time: 11, count: 0 }).is_ok());
     }
 
 
@@ -417,7 +417,7 @@ mod tests {
         #[test]
         fn wall_timestamps_can_be_serialized() {
             let mut wall = Clock::wall();
-            let ts = wall.on_send();
+            let ts = wall.now();
             let s = serde_json::to_string(&ts).expect("to-json");
             let ts2 = serde_json::from_str(&s).expect("from-json");
             assert_eq!(ts, ts2);
