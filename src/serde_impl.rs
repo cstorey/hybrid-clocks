@@ -19,9 +19,13 @@ impl<T: ser::Serialize> ser::Serialize for Timestamp<T> {
                 match self.state {
                     0usize => {
                         self.state += 1;
-                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.time))))
+                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.epoch))))
                     }
                     1usize => {
+                        self.state += 1;
+                        Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.time))))
+                    }
+                    2usize => {
                         self.state += 1;
                         Ok(Some(try!(serializer.serialize_tuple_struct_elt(&self.value.count))))
                     }
@@ -30,7 +34,7 @@ impl<T: ser::Serialize> ser::Serialize for Timestamp<T> {
             }
             #[inline]
             fn len(&self) -> Option<usize> {
-                Some(2usize)
+                Some(3usize)
             }
         }
 
@@ -73,13 +77,20 @@ impl<T: de::Deserialize> de::Deserialize for Timestamp<T> {
                             return Err(de::Error::end_of_stream());
                         }
                     };
+                    let field2 = match try!(visitor.visit()) {
+                        Some(value) => value,
+                        None => {
+                            return Err(de::Error::end_of_stream());
+                        }
+                    };
+
                     try!(visitor.end());
-                    Ok(Timestamp { time: field0, count: field1 })
+                    Ok(Timestamp { epoch: field0, time: field1, count: field2 })
                 }
             }
         }
         deserializer.deserialize_tuple_struct("Timestamp",
-                                              2usize,
+                                              3usize,
                                               Visitor::<D, T>(::std::marker::PhantomData,
                                                               ::std::marker::PhantomData))
     }

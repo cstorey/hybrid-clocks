@@ -516,14 +516,19 @@ mod tests {
     #[cfg(feature = "serde")]
     mod serde {
         use serde_json;
-        use Clock;
+        use {Clock,Timestamp,WallT};
+        use quickcheck;
         #[test]
-        fn wall_timestamps_can_be_serialized() {
-            let mut wall = Clock::wall();
-            let ts = wall.now();
-            let s = serde_json::to_string(&ts).expect("to-json");
-            let ts2 = serde_json::from_str(&s).expect("from-json");
-            assert_eq!(ts, ts2);
+        fn should_round_trip_via_serde() {
+            fn prop(ts: Timestamp<WallT>) -> bool {
+                let s = serde_json::to_string(&ts).expect("to-json");
+                let ts2 = serde_json::from_str(&s).expect("from-json");
+                ts == ts2
+            }
+
+            quickcheck::quickcheck(prop as fn(Timestamp<WallT>) -> bool)
         }
+
+
     }
 }
