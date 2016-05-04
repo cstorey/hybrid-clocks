@@ -91,6 +91,9 @@ impl<S: ClockSource> Clock<S> {
             max_offset: None,
         }
     }
+
+    /// Creates a clock with `src` as the time provider, and `diff` as how far
+    /// in the future we don't mind seeing updates from.
     pub fn new_with_max_diff(mut src: S, diff: S::Delta) -> Self {
         let init = src.now();
         Clock {
