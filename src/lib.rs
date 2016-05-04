@@ -71,7 +71,7 @@ pub struct WallT(u64);
 /// The main clock type.
 pub struct Clock<S: ClockSource> {
     src: S,
-    latest: Timestamp<S::Time>,
+    last_observed: Timestamp<S::Time>,
     max_offset: Option<S::Delta>,
 }
 
@@ -88,7 +88,7 @@ impl<S: ClockSource> Clock<S> {
         let init = src.now();
         Clock {
             src: src,
-            latest: Timestamp { time: init, count: 0 },
+            last_observed: Timestamp { time: init, count: 0 },
             max_offset: None,
         }
     }
@@ -99,56 +99,63 @@ impl<S: ClockSource> Clock<S> {
         let init = src.now();
         Clock {
             src: src,
-            latest: Timestamp { time: init, count: 0 },
+            last_observed: Timestamp { time: init, count: 0 },
             max_offset: Some(diff),
         }
     }
 
     /// Creates a unique monotonic timestamp suitable for annotating messages we send.
     pub fn now(&mut self) -> Timestamp<S::Time> {
-        let pt = self.src.now();
-        let lp = self.latest.clone();
-        println!("pt: {:?}; latest: {:?}; cmp:{:?}", pt, lp, lp.time.cmp(&pt));
-        self.latest = match (lp.time.cmp(&pt), lp.count) {
+        let pt = Timestamp { time: self.src.now(), count: 0 };
+        self.do_observe(&pt);
+        self.last_observed
+    }
+
+    fn do_observe(&mut self, observation: &Timestamp<S::Time>) {
+        let lp = self.last_observed.clone();
+        println!("do_observe: observation: {:?}; last_observed: {:?}; time/cmp:{:?}, count/cmp:{:?}",
+                observation, lp, lp.time.cmp(&observation.time), lp.count.cmp(&observation.count));
+        self.last_observed = match (lp.time.cmp(&observation.time), lp.count.cmp(&observation.count)) {
             (Ordering::Less, _) => {
-                Timestamp { time: pt, count: 0, .. lp }
+                observation.clone()
             },
-            (Ordering::Equal, c) => {
-                Timestamp { count: c + 1, .. lp }
+            (Ordering::Equal, Ordering::Less) => {
+                Timestamp { count: observation.count + 1, .. lp }
             },
-            (Ordering::Greater, c) => {
-                Timestamp { count: c + 1, .. lp }
+            (_, _) => {
+                Timestamp { count: lp.count + 1, .. lp }
             },
         };
-
-        self.latest
     }
 
     /// Accepts a timestamp from an incoming message, and creates a timestamp
     /// that represents when it arrived; guaranteeing that the input
     /// `happens-before` the returned value. Returns an Error iff the delta
-    /// from our latest to the observed timestamp is greater than our
+    /// from our last_observed to the observed timestamp is greater than our
     /// configured limit.
-    pub fn observing(&mut self, msg: &Timestamp<S::Time>) -> Result<Timestamp<S::Time>, Error> {
-        let pt = self.src.now();
-        let lp = self.latest.clone();
+    pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<Timestamp<S::Time>, Error> {
 
-        try!(self.verify_offset(pt, msg));
+        let pt = Timestamp { time: self.src.now(), count: 0 };
+        let lp = self.last_observed.clone();
 
-        self.latest.time = cmp::max(cmp::max(lp.time, msg.time), pt);
-        self.latest.count = match (self.latest.time == lp.time, self.latest.time == msg.time) {
-            (true, true) => cmp::max(self.latest.count, msg.count) + 1,
-            (true, false) => self.latest.count + 1,
+        try!(self.verify_offset(&pt, msg));
+        self.do_observe(&msg);
+        self.do_observe(&pt);
+/*
+        self.last_observed.time = cmp::max(cmp::max(lp.time, msg.time), pt.time);
+        self.last_observed.count = match (self.last_observed.time == lp.time, self.last_observed.time == msg.time) {
+            (true, true) => cmp::max(self.last_observed.count, msg.count) + 1,
+            (true, false) => self.last_observed.count + 1,
             (false, true) => msg.count + 1,
             (false, false) => 0,
         };
-
-        Ok(self.latest.clone())
+*/
+        Ok(self.last_observed)
     }
 
-    fn verify_offset(&self, pt: S::Time, msg: &Timestamp<S::Time>) -> Result<(), Error> {
+    fn verify_offset(&self, pt: &Timestamp<S::Time>, msg: &Timestamp<S::Time>) -> Result<(), Error> {
         if let Some(ref max) = self.max_offset {
-            let diff = msg.time - pt;
+            let diff = msg.time - pt.time;
             if &diff > max {
                 return Err(Error::OffsetTooGreat)
             }
@@ -282,14 +289,14 @@ mod tests {
     fn fig_6_proc_1_a() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        assert_eq!(clock.observing(&Timestamp { time: 10, count: 0 }).unwrap(), Timestamp { time: 10, count: 1 })
+        assert_eq!(clock.observe(&Timestamp { time: 10, count: 0 }).unwrap(), Timestamp { time: 10, count: 1 })
     }
 
     #[test]
     fn fig_6_proc_1_b() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        let _ = clock.observing(&Timestamp { time: 10, count: 0 }).unwrap();
+        let _ = clock.observe(&Timestamp { time: 10, count: 0 }).unwrap();
         src.0.set(2);
         assert_eq!(clock.now(), Timestamp { time: 10, count: 2 })
     }
@@ -298,9 +305,9 @@ mod tests {
     fn fig_6_proc_2_b() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
-        clock.latest = Timestamp { time: 1, count: 0 };
+        clock.last_observed = Timestamp { time: 1, count: 0 };
         src.0.set(2);
-        assert_eq!(clock.observing(&Timestamp { time: 10, count: 2 }).unwrap(), Timestamp { time: 10, count: 3 })
+        assert_eq!(clock.observe(&Timestamp { time: 10, count: 2 }).unwrap(), Timestamp { time: 10, count: 3 })
     }
 
     #[test]
@@ -308,7 +315,7 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         src.0.set(2);
-        let _ = clock.observing(&Timestamp { time: 10, count: 2 }).unwrap();
+        let _ = clock.observe(&Timestamp { time: 10, count: 2 }).unwrap();
         src.0.set(3);
         assert_eq!(clock.now(), Timestamp { time: 10, count: 4 })
     }
@@ -318,7 +325,8 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         let observed = Timestamp { time: 0, count: 5 };
-        let result  =clock.observing(&observed).unwrap();
+        let result  =clock.observe(&observed).unwrap();
+        println!("obs:{:?}; result:{:?}", observed, result);
         assert!(result > observed);
         assert!(result.time == observed.time)
     }
@@ -333,12 +341,12 @@ mod tests {
     }
 
     #[test]
-    fn handles_time_going_backwards_observing() {
+    fn handles_time_going_backwards_observe() {
         let src = ManualClock(Cell::new(10));
         let mut clock = Clock::new(&src);
         let original = clock.now();
         src.0.set(9);
-        let result = clock.observing(&Timestamp { time: 0, count: 0 }).unwrap();
+        let result = clock.observe(&Timestamp { time: 0, count: 0 }).unwrap();
         assert!(result > original);
         assert!(result.time == 10);
     }
@@ -356,20 +364,20 @@ mod tests {
     }
 
     #[test]
-    fn handles_time_going_forwards_observing() {
+    fn handles_time_going_forwards_observe() {
         let src = ManualClock(Cell::new(10));
         let mut clock = Clock::new(&src);
         let _ = clock.now();
         src.0.set(12);
-        assert_eq!(clock.observing(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 12, count: 0 })
+        assert_eq!(clock.observe(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 12, count: 0 })
     }
 
     #[test]
     fn should_ignore_clocks_too_far_forward() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new_with_max_diff(&src, 10);
-        assert!(clock.observing(&Timestamp { time: 11, count: 0 }).is_err());
-        assert_eq!(clock.observing(&Timestamp { time: 1, count: 0 }).unwrap(), Timestamp { time: 1, count: 1 })
+        assert!(clock.observe(&Timestamp { time: 11, count: 0 }).is_err());
+        assert_eq!(clock.observe(&Timestamp { time: 1, count: 0 }).unwrap(), Timestamp { time: 1, count: 1 })
     }
 
     #[test]
@@ -377,7 +385,7 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new_with_max_diff(&src, 10);
         src.0.set(1);
-        assert!(clock.observing(&Timestamp { time: 11, count: 0 }).is_ok());
+        assert!(clock.observe(&Timestamp { time: 11, count: 0 }).is_ok());
     }
 
 
