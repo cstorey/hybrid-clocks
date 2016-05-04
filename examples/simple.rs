@@ -10,7 +10,7 @@ fn main() {
 
     let b0 = clock_b.now();
     let a0 = clock_a.now();
-    let _ = clock_a.observe(&b0).expect("observing");
+    let () = clock_a.observe(&b0).expect("observing");
     let a1 = clock_a.now();
 
     println!("b0: {:?} / {}", b0, b0);
