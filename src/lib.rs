@@ -18,7 +18,7 @@ extern crate serde;
 #[cfg(all(feature = "serde", test))]
 extern crate serde_json;
 
-use std::cmp::{self,Ordering};
+use std::cmp::Ordering;
 use std::fmt;
 use std::io;
 use std::ops::Sub;
@@ -54,7 +54,9 @@ pub trait ClockSource {
 ///  * `a` is part of `b`'s causal history, or vica-versa.
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord, Hash)]
 pub struct Timestamp<T> {
-    /// The wall-clock time as returned by the clock source
+    /// An epoch counter.
+    pub epoch: u32,
+    /// The wall-clock time as returned by the clock source.
     pub time: T,
     /// A Lamport clock used to disambiguate events that are given the same
     /// wall-clock time. This is reset whenever `time` is incremented.
@@ -71,6 +73,7 @@ pub struct WallT(u64);
 /// The main clock type.
 pub struct Clock<S: ClockSource> {
     src: S,
+    epoch: u32,
     last_observed: Timestamp<S::Time>,
     max_offset: Option<S::Delta>,
 }
@@ -88,8 +91,9 @@ impl<S: ClockSource> Clock<S> {
         let init = src.now();
         Clock {
             src: src,
-            last_observed: Timestamp { time: init, count: 0 },
+            last_observed: Timestamp { epoch: 0, time: init, count: 0 },
             max_offset: None,
+            epoch: 0,
         }
     }
 
@@ -99,9 +103,17 @@ impl<S: ClockSource> Clock<S> {
         let init = src.now();
         Clock {
             src: src,
-            last_observed: Timestamp { time: init, count: 0 },
+            last_observed: Timestamp { epoch: 0, time: init, count: 0 },
             max_offset: Some(diff),
+            epoch: 0,
         }
+    }
+
+    /// Used to create a new "epoch" of clock times, mostly useful as a manual
+    /// override when a cluster member has skewed the clock time far
+    /// into the future.
+    pub fn set_epoch(&mut self, epoch: u32) {
+        self.epoch = epoch;
     }
 
     /// Creates a unique monotonic timestamp suitable for annotating messages we send.
@@ -113,14 +125,21 @@ impl<S: ClockSource> Clock<S> {
 
     fn do_observe(&mut self, observation: &Timestamp<S::Time>) {
         let lp = self.last_observed.clone();
-        self.last_observed = match (lp.time.cmp(&observation.time), lp.count.cmp(&observation.count)) {
-            (Ordering::Less, _) => {
+
+        self.last_observed = match (
+                lp.epoch.cmp(&observation.epoch),
+                lp.time.cmp(&observation.time),
+                lp.count.cmp(&observation.count)) {
+            (Ordering::Less, _, _) => {
                 observation.clone()
             },
-            (Ordering::Equal, Ordering::Less) => {
+            (_, Ordering::Less, _) => {
+                observation.clone()
+            },
+            (_, Ordering::Equal, Ordering::Less) => {
                 Timestamp { count: observation.count + 1, .. lp }
             },
-            (_, _) => {
+            (_, _, _) => {
                 Timestamp { count: lp.count + 1, .. lp }
             },
         };
@@ -128,9 +147,9 @@ impl<S: ClockSource> Clock<S> {
 
     /// Accepts a timestamp from an incoming message, and updates the clock
     /// so that further calls to `now` will always return a timestamp that
-    /// `happens-after` either any previous readings or that of the observed
-    /// message. Returns an Error iff the delta from our local lock to the
-    /// observed timestamp is greater than our configured limit.
+    /// `happens-after` either locally generated timestamps or that of the
+    /// input message. Returns an Error iff the delta from our local lock to
+    /// the observed timestamp is greater than our configured limit.
     pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<(), Error> {
         let pt = self.read_pt();
         try!(self.verify_offset(&pt, msg));
@@ -139,7 +158,7 @@ impl<S: ClockSource> Clock<S> {
     }
 
     fn read_pt(&mut self) -> Timestamp<S::Time> {
-        Timestamp { time: self.src.now(), count: 0 }
+        Timestamp { epoch: self.epoch, time: self.src.now(), count: 0 }
     }
 
     fn verify_offset(&self, pt: &Timestamp<S::Time>, msg: &Timestamp<S::Time>) -> Result<(), Error> {
@@ -157,6 +176,7 @@ impl<S: ClockSource> Clock<S> {
 impl Timestamp<WallT> {
     pub fn write_bytes<W: io::Write>(&self, mut wr: W) -> Result<(), io::Error> {
         let wall = &self.time;
+        try!(wr.write_u32::<BigEndian>(self.epoch));
         try!(wr.write_u64::<BigEndian>(wall.0));
         try!(wr.write_u32::<BigEndian>(self.count));
         Ok(())
@@ -164,10 +184,11 @@ impl Timestamp<WallT> {
 
     pub fn read_bytes<R: io::Read>(mut r: R) -> Result<Self, io::Error> {
         // use ClockSource;
+        let epoch = try!(r.read_u32::<BigEndian>());
         let nanos = try!(r.read_u64::<BigEndian>());
         let l = try!(r.read_u32::<BigEndian>());
         let wall = WallT(nanos);
-        Ok(Timestamp { time: wall, count: l })
+        Ok(Timestamp { epoch: epoch, time: wall, count: l })
     }
 }
 
@@ -218,7 +239,7 @@ impl fmt::Display for WallT {
 
 impl<T: fmt::Display> fmt::Display for Timestamp<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}+{}", self.time, self.count)
+        write!(fmt, "{}:{}+{}", self.epoch, self.time, self.count)
     }
 }
 
@@ -229,10 +250,9 @@ mod serde_impl;
 mod tests {
     use super::{Clock, ClockSource, Timestamp, WallT};
     use std::cell::Cell;
-    use std::cmp::{Ord, Ordering};
+    use std::cmp::Ord;
     use std::io::Cursor;
     use quickcheck::{self,Arbitrary, Gen};
-    use time;
 
     struct ManualClock(Cell<u64>);
 
@@ -256,13 +276,14 @@ mod tests {
 
     impl<T: Arbitrary + Copy> Arbitrary for Timestamp<T> {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let e = Arbitrary::arbitrary(g);
             let w = Arbitrary::arbitrary(g);
             let l = Arbitrary::arbitrary(g);
-            Timestamp { time: w, count: l }
+            Timestamp { epoch: e, time: w, count: l }
         }
         fn shrink(&self) -> Box<Iterator<Item = Self> + 'static> {
-            Box::new((self.time, self.count).shrink()
-                    .map(|(w, l)| Timestamp { time: w, count: l }))
+            Box::new((self.epoch, self.time, self.count).shrink()
+                    .map(|(e, w, l)| Timestamp { epoch: e, time: w, count: l }))
         }
     }
 
@@ -276,32 +297,32 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         src.0.set(10);
-        assert_eq!(clock.now(), Timestamp { time: 10, count: 0 })
+        assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 0 })
     }
 
     #[test]
     fn fig_6_proc_1_a() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        assert_eq!(observing(&mut clock, &Timestamp { time: 10, count: 0 }).unwrap(), Timestamp { time: 10, count: 1 })
+        assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 10, count: 1 })
     }
 
     #[test]
     fn fig_6_proc_1_b() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        let _ = observing(&mut clock, &Timestamp { time: 10, count: 0 }).unwrap();
+        let _ = observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 0 }).unwrap();
         src.0.set(2);
-        assert_eq!(clock.now(), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 2 })
     }
 
     #[test]
     fn fig_6_proc_2_b() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
-        clock.last_observed = Timestamp { time: 1, count: 0 };
+        clock.last_observed = Timestamp { epoch: 0, time: 1, count: 0 };
         src.0.set(2);
-        assert_eq!(observing(&mut clock, &Timestamp { time: 10, count: 2 }).unwrap(), Timestamp { time: 10, count: 3 })
+        assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 2 }).unwrap(), Timestamp { epoch: 0, time: 10, count: 3 })
     }
 
     #[test]
@@ -309,16 +330,16 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         src.0.set(2);
-        let _ = observing(&mut clock, &Timestamp { time: 10, count: 2 }).unwrap();
+        let _ = observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 2 }).unwrap();
         src.0.set(3);
-        assert_eq!(clock.now(), Timestamp { time: 10, count: 4 })
+        assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 4 })
     }
 
     #[test]
     fn all_sources_same() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
-        let observed = Timestamp { time: 0, count: 5 };
+        let observed = Timestamp { epoch: 0, time: 0, count: 5 };
         let result  = observing(&mut clock, &observed).unwrap();
         println!("obs:{:?}; result:{:?}", observed, result);
         assert!(result > observed);
@@ -331,7 +352,7 @@ mod tests {
         let mut clock = Clock::new(&src);
         let _ = clock.now();
         src.0.set(9);
-        assert_eq!(clock.now(), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 2 })
     }
 
     #[test]
@@ -340,7 +361,7 @@ mod tests {
         let mut clock = Clock::new(&src);
         let original = clock.now();
         src.0.set(9);
-        let result = observing(&mut clock, &Timestamp { time: 0, count: 0 }).unwrap();
+        let result = observing(&mut clock, &Timestamp { epoch: 0, time: 0, count: 0 }).unwrap();
         assert!(result > original);
         assert!(result.time == 10);
     }
@@ -354,7 +375,7 @@ mod tests {
         src.0.set(12);
         let t2 = clock.now();
         println!("=> 12: {}", t2);
-        assert_eq!(t2, Timestamp { time: 12, count: 0 })
+        assert_eq!(t2, Timestamp { epoch: 0, time: 12, count: 0 })
     }
 
     #[test]
@@ -363,15 +384,91 @@ mod tests {
         let mut clock = Clock::new(&src);
         let _ = clock.now();
         src.0.set(12);
-        assert_eq!(observing(&mut clock, &Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 12, count: 0 })
+        assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 0, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 12, count: 0 })
     }
+
+    #[test]
+    fn should_order_primarily_via_epoch() {
+        let src0 = ManualClock(Cell::new(10));
+        let mut clock0 = Clock::new(&src0);
+        clock0.set_epoch(0);
+        let src1 = ManualClock(Cell::new(0));
+        let mut clock1 = Clock::new(&src1);
+        clock1.set_epoch(1);
+
+        let a = clock0.now();
+        let b = clock1.now();
+        println!("a: {} < b: {}", a,b);
+        assert!(a < b);
+    }
+
+    #[test]
+    fn should_apply_configured_epoch() {
+        let src0 = ManualClock(Cell::new(10));
+        let mut clock0 = Clock::new(&src0);
+
+        let _ = clock0.now();
+
+        clock0.set_epoch(1);
+
+        src0.0.set(1);
+
+        let a = clock0.now();
+
+        assert_eq!(a, Timestamp { epoch: 1, time: 1, count: 0 });
+    }
+
+    #[test]
+    fn should_update_via_observed_epochs() {
+        let src0 = ManualClock(Cell::new(10));
+        let mut clock0 = Clock::new(&src0);
+        clock0.set_epoch(0);
+
+        let _ = clock0.now();
+
+        let src1 = ManualClock(Cell::new(0));
+        let mut clock1 = Clock::new(&src1);
+        clock1.set_epoch(1);
+
+        src0.0.set(1);
+        src1.0.set(1);
+
+        let a = clock1.now();
+
+        let b = observing(&mut clock0, &a).unwrap();
+        println!("a: {}; b: {}", a, b);
+        assert_eq!(a, Timestamp { epoch: 1, time: 1, count: 0 });
+        assert_eq!(b, Timestamp { epoch: 1, time: 1, count: 1 });
+    }
+
+    #[test]
+    fn should_remember_epochs() {
+        let src0 = ManualClock(Cell::new(10));
+        let mut clock0 = Clock::new(&src0);
+        clock0.set_epoch(0);
+
+
+        let src1 = ManualClock(Cell::new(0));
+        let mut clock1 = Clock::new(&src1);
+        clock1.set_epoch(1);
+
+        src0.0.set(1);
+        src1.0.set(1);
+
+        let a = clock1.now();
+        let _ = observing(&mut clock0, &a).unwrap();
+        let b = clock0.now();
+        println!("a: {}; b:{}", a, b);
+        assert_eq!(b, Timestamp { epoch: 1, time: 1, count: 2 });
+    }
+
 
     #[test]
     fn should_ignore_clocks_too_far_forward() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new_with_max_diff(&src, 10);
-        assert!(observing(&mut clock, &Timestamp { time: 11, count: 0 }).is_err());
-        assert_eq!(observing(&mut clock, &Timestamp { time: 1, count: 0 }).unwrap(), Timestamp { time: 1, count: 1 })
+        assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_err());
+        assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 1, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 1, count: 1 })
     }
 
     #[test]
@@ -379,7 +476,7 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new_with_max_diff(&src, 10);
         src.0.set(1);
-        assert!(observing(&mut clock, &Timestamp { time: 11, count: 0 }).is_ok());
+        assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_ok());
     }
 
     #[test]
