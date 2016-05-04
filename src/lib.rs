@@ -317,7 +317,10 @@ mod tests {
     fn all_sources_same() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
-        assert_eq!(clock.observing(&Timestamp { time: 0, count: 5 }).unwrap(), Timestamp { time: 0, count: 6 })
+        let observed = Timestamp { time: 0, count: 5 };
+        let result  =clock.observing(&observed).unwrap();
+        assert!(result > observed);
+        assert!(result.time == observed.time)
     }
 
     #[test]
@@ -333,9 +336,11 @@ mod tests {
     fn handles_time_going_backwards_observing() {
         let src = ManualClock(Cell::new(10));
         let mut clock = Clock::new(&src);
-        let _ = clock.now();
+        let original = clock.now();
         src.0.set(9);
-        assert_eq!(clock.observing(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 10, count: 2 })
+        let result = clock.observing(&Timestamp { time: 0, count: 0 }).unwrap();
+        assert!(result > original);
+        assert!(result.time == 10);
     }
 
     #[test]
