@@ -18,7 +18,7 @@ extern crate serde;
 #[cfg(all(feature = "serde", test))]
 extern crate serde_json;
 
-use std::cmp;
+use std::cmp::{self,Ordering};
 use std::fmt;
 use std::io;
 use std::ops::Sub;
@@ -37,7 +37,7 @@ quick_error! {
 /// Describes the interface that the inner clock source must provide.
 pub trait ClockSource {
     /// Represents the described clock time.
-    type Time : Ord + Copy + Sub<Output=Self::Delta>;
+    type Time : Ord + Copy + Sub<Output=Self::Delta> + fmt::Debug;
     /// The difference between two timestamps.
     type Delta : Ord;
     /// Returns the current clock time.
@@ -108,11 +108,17 @@ impl<S: ClockSource> Clock<S> {
     pub fn on_send(&mut self) -> Timestamp<S::Time> {
         let pt = self.src.now();
         let lp = self.latest.clone();
-        self.latest.time = cmp::max(lp.time, pt);
-        self.latest.count = if lp.time == self.latest.time {
-            lp.count + 1
-        } else {
-            0
+        println!("pt: {:?}; latest: {:?}; cmp:{:?}", pt, lp, lp.time.cmp(&pt));
+        self.latest = match lp.time.cmp(&pt) {
+            Ordering::Less => {
+                Timestamp { time: pt, count: 0, .. lp }
+            },
+            Ordering::Equal => {
+                Timestamp { count: lp.count + 1, .. lp }
+            },
+            Ordering::Greater => {
+                Timestamp { count: lp.count + 1, .. lp }
+            },
         };
 
         self.latest
@@ -336,9 +342,12 @@ mod tests {
     fn handles_time_going_forwards_on_send() {
         let src = ManualClock(Cell::new(10));
         let mut clock = Clock::new(&src);
-        let _ = clock.on_send();
+        let t = clock.on_send();
+        println!("at 10: {}", t);
         src.0.set(12);
-        assert_eq!(clock.on_send(), Timestamp { time: 12, count: 0 })
+        let t2 = clock.on_send();
+        println!("=> 12: {}", t2);
+        assert_eq!(t2, Timestamp { time: 12, count: 0 })
     }
 
     #[test]
