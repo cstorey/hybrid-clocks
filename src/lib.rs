@@ -109,15 +109,15 @@ impl<S: ClockSource> Clock<S> {
         let pt = self.src.now();
         let lp = self.latest.clone();
         println!("pt: {:?}; latest: {:?}; cmp:{:?}", pt, lp, lp.time.cmp(&pt));
-        self.latest = match lp.time.cmp(&pt) {
-            Ordering::Less => {
+        self.latest = match (lp.time.cmp(&pt), lp.count) {
+            (Ordering::Less, _) => {
                 Timestamp { time: pt, count: 0, .. lp }
             },
-            Ordering::Equal => {
-                Timestamp { count: lp.count + 1, .. lp }
+            (Ordering::Equal, c) => {
+                Timestamp { count: c + 1, .. lp }
             },
-            Ordering::Greater => {
-                Timestamp { count: lp.count + 1, .. lp }
+            (Ordering::Greater, c) => {
+                Timestamp { count: c + 1, .. lp }
             },
         };
 
