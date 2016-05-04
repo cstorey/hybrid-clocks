@@ -3,6 +3,7 @@
 //! This is based on the paper "Logical Physical Clocks and Consistent
 //! Snapshots in Globally Distributed Databases". Provides a
 //! strictly-monotonic clock that can be used to determine if one event
+//! `happens-before` another.
 
 extern crate time;
 extern crate byteorder;
