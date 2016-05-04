@@ -54,6 +54,8 @@ pub trait ClockSource {
 ///  * `a` is part of `b`'s causal history, or vica-versa.
 #[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord, Hash)]
 pub struct Timestamp<T> {
+    /// An epoch counter
+    pub epoch: u32,
     /// The wall-clock time as returned by the clock source
     pub time: T,
     /// A Lamport clock used to disambiguate events that are given the same
@@ -88,7 +90,7 @@ impl<S: ClockSource> Clock<S> {
         let init = src.now();
         Clock {
             src: src,
-            latest: Timestamp { time: init, count: 0 },
+            latest: Timestamp { epoch: 0, time: init, count: 0 },
             max_offset: None,
         }
     }
@@ -99,9 +101,13 @@ impl<S: ClockSource> Clock<S> {
         let init = src.now();
         Clock {
             src: src,
-            latest: Timestamp { time: init, count: 0 },
+            latest: Timestamp { epoch: 0, time: init, count: 0 },
             max_offset: Some(diff),
         }
+    }
+
+    fn set_epoch(&mut self, epoch: u32) {
+        self.latest.epoch = epoch;
     }
 
     /// Creates a unique monotonic timestamp suitable for annotating messages we send.
@@ -165,7 +171,7 @@ impl Timestamp<WallT> {
         let nanos = try!(r.read_u64::<BigEndian>());
         let l = try!(r.read_u32::<BigEndian>());
         let wall = WallT(nanos);
-        Ok(Timestamp { time: wall, count: l })
+        Ok(Timestamp { epoch: 0, time: wall, count: l })
     }
 }
 
@@ -256,11 +262,11 @@ mod tests {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let w = Arbitrary::arbitrary(g);
             let l = Arbitrary::arbitrary(g);
-            Timestamp { time: w, count: l }
+            Timestamp { epoch: 0, time: w, count: l }
         }
         fn shrink(&self) -> Box<Iterator<Item = Self> + 'static> {
             Box::new((self.time, self.count).shrink()
-                    .map(|(w, l)| Timestamp { time: w, count: l }))
+                    .map(|(w, l)| Timestamp { epoch: 0, time: w, count: l }))
         }
     }
 
@@ -269,32 +275,32 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         src.0.set(10);
-        assert_eq!(clock.on_send(), Timestamp { time: 10, count: 0 })
+        assert_eq!(clock.on_send(), Timestamp { epoch: 0, time: 10, count: 0 })
     }
 
     #[test]
     fn fig_6_proc_1_a() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        assert_eq!(clock.on_recv(&Timestamp { time: 10, count: 0 }).unwrap(), Timestamp { time: 10, count: 1 })
+        assert_eq!(clock.on_recv(&Timestamp { epoch: 0, time: 10, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 10, count: 1 })
     }
 
     #[test]
     fn fig_6_proc_1_b() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        let _ = clock.on_recv(&Timestamp { time: 10, count: 0 }).unwrap();
+        let _ = clock.on_recv(&Timestamp { epoch: 0, time: 10, count: 0 }).unwrap();
         src.0.set(2);
-        assert_eq!(clock.on_send(), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.on_send(), Timestamp { epoch: 0, time: 10, count: 2 })
     }
 
     #[test]
     fn fig_6_proc_2_b() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
-        clock.latest = Timestamp { time: 1, count: 0 };
+        clock.latest = Timestamp { epoch: 0, time: 1, count: 0 };
         src.0.set(2);
-        assert_eq!(clock.on_recv(&Timestamp { time: 10, count: 2 }).unwrap(), Timestamp { time: 10, count: 3 })
+        assert_eq!(clock.on_recv(&Timestamp { epoch: 0, time: 10, count: 2 }).unwrap(), Timestamp { epoch: 0, time: 10, count: 3 })
     }
 
     #[test]
@@ -302,16 +308,16 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         src.0.set(2);
-        let _ = clock.on_recv(&Timestamp { time: 10, count: 2 }).unwrap();
+        let _ = clock.on_recv(&Timestamp { epoch: 0, time: 10, count: 2 }).unwrap();
         src.0.set(3);
-        assert_eq!(clock.on_send(), Timestamp { time: 10, count: 4 })
+        assert_eq!(clock.on_send(), Timestamp { epoch: 0, time: 10, count: 4 })
     }
 
     #[test]
     fn all_sources_same() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 5 }).unwrap(), Timestamp { time: 0, count: 6 })
+        assert_eq!(clock.on_recv(&Timestamp { epoch: 0, time: 0, count: 5 }).unwrap(), Timestamp { epoch: 0, time: 0, count: 6 })
     }
 
     #[test]
@@ -320,7 +326,7 @@ mod tests {
         let mut clock = Clock::new(&src);
         let _ = clock.on_send();
         src.0.set(9);
-        assert_eq!(clock.on_send(), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.on_send(), Timestamp { epoch: 0, time: 10, count: 2 })
     }
 
     #[test]
@@ -329,7 +335,8 @@ mod tests {
         let mut clock = Clock::new(&src);
         let _ = clock.on_send();
         src.0.set(9);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.on_recv(&Timestamp { epoch: 0, time: 0, count: 0 }).unwrap(),
+                Timestamp { epoch: 0, time: 10, count: 2 })
     }
 
     #[test]
@@ -338,7 +345,7 @@ mod tests {
         let mut clock = Clock::new(&src);
         let _ = clock.on_send();
         src.0.set(12);
-        assert_eq!(clock.on_send(), Timestamp { time: 12, count: 0 })
+        assert_eq!(clock.on_send(), Timestamp { epoch: 0, time: 12, count: 0 })
     }
 
     #[test]
@@ -347,15 +354,54 @@ mod tests {
         let mut clock = Clock::new(&src);
         let _ = clock.on_send();
         src.0.set(12);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 12, count: 0 })
+        assert_eq!(clock.on_recv(&Timestamp { epoch: 0, time: 0, count: 0 }).unwrap(),
+                Timestamp { epoch: 0, time: 12, count: 0 })
+    }
+
+    #[test]
+    fn should_order_primarily_via_epoch() {
+        let src0 = ManualClock(Cell::new(10));
+        let mut clock0 = Clock::new(&src0);
+        clock0.set_epoch(0);
+        let src1 = ManualClock(Cell::new(0));
+        let mut clock1 = Clock::new(&src1);
+        clock1.set_epoch(1);
+        
+        let a = clock0.on_send();
+        let b = clock1.on_send();
+        println!("a: {} < b: {}", a,b);
+        assert!(a < b);
+    }
+
+    #[test]
+    fn should_update_via_observed_epochs() {
+        let src0 = ManualClock(Cell::new(10));
+        let mut clock0 = Clock::new(&src0);
+        clock0.set_epoch(0);
+       
+        let _ = clock0.on_send();
+
+        let src1 = ManualClock(Cell::new(0));
+        let mut clock1 = Clock::new(&src1);
+        clock1.set_epoch(1);
+
+        src0.0.set(1);
+        src1.0.set(1);
+
+        let a = clock1.on_send();
+
+        let b = clock0.on_recv(&a).unwrap();
+        println!("a: {}; b: {}", a,b);
+        assert_eq!(a, Timestamp { epoch: 1, time: 1, count: 0 });
+        assert_eq!(b, Timestamp { epoch: 1, time: 1, count: 1 });
     }
 
     #[test]
     fn should_ignore_clocks_too_far_forward() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new_with_max_diff(&src, 10);
-        assert!(clock.on_recv(&Timestamp { time: 11, count: 0 }).is_err());
-        assert_eq!(clock.on_recv(&Timestamp { time: 1, count: 0 }).unwrap(), Timestamp { time: 1, count: 1 })
+        assert!(clock.on_recv(&Timestamp { epoch: 0, time: 11, count: 0 }).is_err());
+        assert_eq!(clock.on_recv(&Timestamp { epoch: 0, time: 1, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 1, count: 1 })
     }
 
     #[test]
@@ -363,9 +409,8 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new_with_max_diff(&src, 10);
         src.0.set(1);
-        assert!(clock.on_recv(&Timestamp { time: 11, count: 0 }).is_ok());
+        assert!(clock.on_recv(&Timestamp { epoch: 0, time: 11, count: 0 }).is_ok());
     }
-
 
     #[test]
     fn should_round_trip_via_key() {
