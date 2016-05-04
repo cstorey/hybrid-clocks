@@ -10,7 +10,7 @@ fn main() {
 
     let b0 = clock_b.on_send();
     let a0 = clock_a.on_send();
-    let a1 = clock_a.on_recv(&b0);
+    let a1 = clock_a.on_recv(&b0).expect("on_recv");
 
     println!("b0: {:?} / {}", b0, b0);
     println!("a0: {:?} / {}", a0, a0);

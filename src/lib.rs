@@ -10,6 +10,9 @@ extern crate byteorder;
 #[cfg(test)]
 extern crate quickcheck;
 
+#[macro_use]
+extern crate quick_error;
+
 #[cfg(feature = "serde")]
 extern crate serde;
 #[cfg(all(feature = "serde", test))]
@@ -18,13 +21,24 @@ extern crate serde_json;
 use std::cmp;
 use std::fmt;
 use std::io;
+use std::ops::Sub;
+use time::Duration;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+
+quick_error! {
+    #[derive(Debug)]
+    pub enum Error {
+        OffsetTooGreat {
+        }
+    }
+}
 
 
 /// Describes the interface that the inner clock source must provide.
 pub trait ClockSource {
     /// Represents the described clock time.
-    type Time : Ord + Copy;
+    type Time : Ord + Copy + Sub<Output=Self::Delta>;
+    type Delta : Ord;
     /// Returns the current clock time.
     fn now(&mut self) -> Self::Time;
 }
@@ -57,6 +71,7 @@ pub struct WallT(u64);
 pub struct Clock<S: ClockSource> {
     src: S,
     latest: Timestamp<S::Time>,
+    max_offset: Option<S::Delta>,
 }
 
 impl Clock<Wall> {
@@ -73,6 +88,15 @@ impl<S: ClockSource> Clock<S> {
         Clock {
             src: src,
             latest: Timestamp { time: init, count: 0 },
+            max_offset: None,
+        }
+    }
+    pub fn new_with_max_diff(mut src: S, diff: S::Delta) -> Self {
+        let init = src.now();
+        Clock {
+            src: src,
+            latest: Timestamp { time: init, count: 0 },
+            max_offset: Some(diff),
         }
     }
 
@@ -92,10 +116,14 @@ impl<S: ClockSource> Clock<S> {
 
     /// Accepts a timestamp from an incoming message, and creates a timestamp
     /// that represents when it arrived; guaranteeing that the input
-    /// `happens-before` the returned value.
-    pub fn on_recv(&mut self, msg: &Timestamp<S::Time>) -> Timestamp<S::Time> {
+    /// `happens-before` the returned value. Returns an Error iff the delta
+    /// from our latest to the observed timestamp is greater than our
+    /// configured limit.
+    pub fn on_recv(&mut self, msg: &Timestamp<S::Time>) -> Result<Timestamp<S::Time>, Error> {
         let pt = self.src.now();
         let lp = self.latest.clone();
+
+        try!(self.verify_offset(pt, msg));
 
         self.latest.time = cmp::max(cmp::max(lp.time, msg.time), pt);
         self.latest.count = match (self.latest.time == lp.time, self.latest.time == msg.time) {
@@ -105,7 +133,18 @@ impl<S: ClockSource> Clock<S> {
             (false, false) => 0,
         };
 
-        self.latest.clone()
+        Ok(self.latest.clone())
+    }
+
+    fn verify_offset(&self, pt: S::Time, msg: &Timestamp<S::Time>) -> Result<(), Error> {
+        if let Some(ref max) = self.max_offset {
+            let diff = msg.time - pt;
+            if &diff > max {
+                return Err(Error::OffsetTooGreat)
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -147,9 +186,18 @@ impl WallT {
     }
 }
 
+impl Sub for WallT {
+    type Output = Duration;
+    fn sub(self, rhs: Self) -> Self::Output {
+        let nanos = self.0 - rhs.0;
+        Duration::nanoseconds(nanos as i64)
+    }
+}
+
 
 impl ClockSource for Wall {
     type Time = WallT;
+    type Delta = Duration;
     fn now(&mut self) -> Self::Time {
         WallT::from_timespec(time::get_time())
     }
@@ -184,6 +232,7 @@ mod tests {
 
     impl<'a> ClockSource for &'a ManualClock {
         type Time = u64;
+        type Delta = u64;
         fn now(&mut self) -> Self::Time {
             self.0.get()
         }
@@ -223,14 +272,14 @@ mod tests {
     fn fig_6_proc_1_a() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        assert_eq!(clock.on_recv(&Timestamp { time: 10, count: 0 }), Timestamp { time: 10, count: 1 })
+        assert_eq!(clock.on_recv(&Timestamp { time: 10, count: 0 }).unwrap(), Timestamp { time: 10, count: 1 })
     }
 
     #[test]
     fn fig_6_proc_1_b() {
         let src = ManualClock(Cell::new(1));
         let mut clock = Clock::new(&src);
-        let _ = clock.on_recv(&Timestamp { time: 10, count: 0 });
+        let _ = clock.on_recv(&Timestamp { time: 10, count: 0 }).unwrap();
         src.0.set(2);
         assert_eq!(clock.on_send(), Timestamp { time: 10, count: 2 })
     }
@@ -241,7 +290,7 @@ mod tests {
         let mut clock = Clock::new(&src);
         clock.latest = Timestamp { time: 1, count: 0 };
         src.0.set(2);
-        assert_eq!(clock.on_recv(&Timestamp { time: 10, count: 2 }), Timestamp { time: 10, count: 3 })
+        assert_eq!(clock.on_recv(&Timestamp { time: 10, count: 2 }).unwrap(), Timestamp { time: 10, count: 3 })
     }
 
     #[test]
@@ -249,7 +298,7 @@ mod tests {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
         src.0.set(2);
-        let _ = clock.on_recv(&Timestamp { time: 10, count: 2 });
+        let _ = clock.on_recv(&Timestamp { time: 10, count: 2 }).unwrap();
         src.0.set(3);
         assert_eq!(clock.on_send(), Timestamp { time: 10, count: 4 })
     }
@@ -258,7 +307,7 @@ mod tests {
     fn all_sources_same() {
         let src = ManualClock(Cell::new(0));
         let mut clock = Clock::new(&src);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 5 }), Timestamp { time: 0, count: 6 })
+        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 5 }).unwrap(), Timestamp { time: 0, count: 6 })
     }
 
     #[test]
@@ -276,7 +325,7 @@ mod tests {
         let mut clock = Clock::new(&src);
         let _ = clock.on_send();
         src.0.set(9);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 0 }), Timestamp { time: 10, count: 2 })
+        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 10, count: 2 })
     }
 
     #[test]
@@ -294,8 +343,25 @@ mod tests {
         let mut clock = Clock::new(&src);
         let _ = clock.on_send();
         src.0.set(12);
-        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 0 }), Timestamp { time: 12, count: 0 })
+        assert_eq!(clock.on_recv(&Timestamp { time: 0, count: 0 }).unwrap(), Timestamp { time: 12, count: 0 })
     }
+
+    #[test]
+    fn should_ignore_clocks_too_far_forward() {
+        let src = ManualClock(Cell::new(0));
+        let mut clock = Clock::new_with_max_diff(&src, 10);
+        assert!(clock.on_recv(&Timestamp { time: 11, count: 0 }).is_err());
+        assert_eq!(clock.on_recv(&Timestamp { time: 1, count: 0 }).unwrap(), Timestamp { time: 1, count: 1 })
+    }
+
+    #[test]
+    fn should_account_for_time_passing_when_checking_max_error() {
+        let src = ManualClock(Cell::new(0));
+        let mut clock = Clock::new_with_max_diff(&src, 10);
+        src.0.set(1);
+        assert!(clock.on_recv(&Timestamp { time: 11, count: 0 }).is_ok());
+    }
+
 
     #[test]
     fn should_round_trip_via_key() {
