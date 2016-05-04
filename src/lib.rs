@@ -38,6 +38,7 @@ quick_error! {
 pub trait ClockSource {
     /// Represents the described clock time.
     type Time : Ord + Copy + Sub<Output=Self::Delta>;
+    /// The difference between two timestamps.
     type Delta : Ord;
     /// Returns the current clock time.
     fn now(&mut self) -> Self::Time;
