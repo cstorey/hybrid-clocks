@@ -71,6 +71,7 @@ pub struct Wall;
 pub struct WallT(u64);
 
 /// The main clock type.
+#[derive(Debug,Clone)]
 pub struct Clock<S: ClockSource> {
     src: S,
     epoch: u32,
