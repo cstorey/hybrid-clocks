@@ -22,6 +22,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::io;
 use std::ops::Sub;
+use std::cell::Cell;
 use time::Duration;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
@@ -244,26 +245,37 @@ impl<T: fmt::Display> fmt::Display for Timestamp<T> {
     }
 }
 
+pub struct ManualClock(Cell<u64>);
+
+impl<'a> ClockSource for &'a ManualClock {
+    type Time = u64;
+    type Delta = u64;
+    fn now(&mut self) -> Self::Time {
+        self.0.get()
+    }
+}
+
+
+impl ManualClock {
+    pub fn new(t: u64) -> ManualClock {
+        ManualClock(Cell::new(t))
+    }
+    pub fn set_time(&self, t: u64) {
+        self.0.set(t)
+    }
+}
+
+
+
 #[cfg(feature = "serde")]
 mod serde_impl;
 
 #[cfg(test)]
 mod tests {
-    use super::{Clock, ClockSource, Timestamp, WallT};
-    use std::cell::Cell;
+    use super::{Clock, ClockSource, Timestamp, WallT, ManualClock};
     use std::cmp::Ord;
     use std::io::Cursor;
     use quickcheck::{self,Arbitrary, Gen};
-
-    struct ManualClock(Cell<u64>);
-
-    impl<'a> ClockSource for &'a ManualClock {
-        type Time = u64;
-        type Delta = u64;
-        fn now(&mut self) -> Self::Time {
-            self.0.get()
-        }
-    }
 
     impl Arbitrary for WallT {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -295,50 +307,50 @@ mod tests {
 
     #[test]
     fn fig_6_proc_0_a() {
-        let src = ManualClock(Cell::new(0));
+        let src = ManualClock::new(0);
         let mut clock = Clock::new(&src);
-        src.0.set(10);
+        src.set_time(10);
         assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 0 })
     }
 
     #[test]
     fn fig_6_proc_1_a() {
-        let src = ManualClock(Cell::new(1));
+        let src = ManualClock::new(1);
         let mut clock = Clock::new(&src);
         assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 10, count: 1 })
     }
 
     #[test]
     fn fig_6_proc_1_b() {
-        let src = ManualClock(Cell::new(1));
+        let src = ManualClock::new(1);
         let mut clock = Clock::new(&src);
         let _ = observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 0 }).unwrap();
-        src.0.set(2);
+        src.set_time(2);
         assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 2 })
     }
 
     #[test]
     fn fig_6_proc_2_b() {
-        let src = ManualClock(Cell::new(0));
+        let src = ManualClock::new(0);
         let mut clock = Clock::new(&src);
         clock.last_observed = Timestamp { epoch: 0, time: 1, count: 0 };
-        src.0.set(2);
+        src.set_time(2);
         assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 2 }).unwrap(), Timestamp { epoch: 0, time: 10, count: 3 })
     }
 
     #[test]
     fn fig_6_proc_2_c() {
-        let src = ManualClock(Cell::new(0));
+        let src = ManualClock::new(0);
         let mut clock = Clock::new(&src);
-        src.0.set(2);
+        src.set_time(2);
         let _ = observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 2 }).unwrap();
-        src.0.set(3);
+        src.set_time(3);
         assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 4 })
     }
 
     #[test]
     fn all_sources_same() {
-        let src = ManualClock(Cell::new(0));
+        let src = ManualClock::new(0);
         let mut clock = Clock::new(&src);
         let observed = Timestamp { epoch: 0, time: 0, count: 5 };
         let result  = observing(&mut clock, &observed).unwrap();
@@ -349,19 +361,19 @@ mod tests {
 
     #[test]
     fn handles_time_going_backwards_now() {
-        let src = ManualClock(Cell::new(10));
+        let src = ManualClock::new(10);
         let mut clock = Clock::new(&src);
         let _ = clock.now();
-        src.0.set(9);
+        src.set_time(9);
         assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 2 })
     }
 
     #[test]
     fn handles_time_going_backwards_observe() {
-        let src = ManualClock(Cell::new(10));
+        let src = ManualClock::new(10);
         let mut clock = Clock::new(&src);
         let original = clock.now();
-        src.0.set(9);
+        src.set_time(9);
         let result = observing(&mut clock, &Timestamp { epoch: 0, time: 0, count: 0 }).unwrap();
         assert!(result > original);
         assert!(result.time == 10);
@@ -369,11 +381,11 @@ mod tests {
 
     #[test]
     fn handles_time_going_forwards_now() {
-        let src = ManualClock(Cell::new(10));
+        let src = ManualClock::new(10);
         let mut clock = Clock::new(&src);
         let t = clock.now();
         println!("at 10: {}", t);
-        src.0.set(12);
+        src.set_time(12);
         let t2 = clock.now();
         println!("=> 12: {}", t2);
         assert_eq!(t2, Timestamp { epoch: 0, time: 12, count: 0 })
@@ -381,19 +393,19 @@ mod tests {
 
     #[test]
     fn handles_time_going_forwards_observe() {
-        let src = ManualClock(Cell::new(10));
+        let src = ManualClock::new(10);
         let mut clock = Clock::new(&src);
         let _ = clock.now();
-        src.0.set(12);
+        src.set_time(12);
         assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 0, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 12, count: 0 })
     }
 
     #[test]
     fn should_order_primarily_via_epoch() {
-        let src0 = ManualClock(Cell::new(10));
+        let src0 = ManualClock::new(10);
         let mut clock0 = Clock::new(&src0);
         clock0.set_epoch(0);
-        let src1 = ManualClock(Cell::new(0));
+        let src1 = ManualClock::new(0);
         let mut clock1 = Clock::new(&src1);
         clock1.set_epoch(1);
 
@@ -405,7 +417,7 @@ mod tests {
 
     #[test]
     fn should_apply_configured_epoch() {
-        let src0 = ManualClock(Cell::new(10));
+        let src0 = ManualClock::new(10);
         let mut clock0 = Clock::new(&src0);
 
         let _ = clock0.now();
@@ -421,13 +433,13 @@ mod tests {
 
     #[test]
     fn should_update_via_observed_epochs() {
-        let src0 = ManualClock(Cell::new(10));
+        let src0 = ManualClock::new(10);
         let mut clock0 = Clock::new(&src0);
         clock0.set_epoch(0);
 
         let _ = clock0.now();
 
-        let src1 = ManualClock(Cell::new(0));
+        let src1 = ManualClock::new(0);
         let mut clock1 = Clock::new(&src1);
         clock1.set_epoch(1);
 
@@ -444,12 +456,12 @@ mod tests {
 
     #[test]
     fn should_remember_epochs() {
-        let src0 = ManualClock(Cell::new(10));
+        let src0 = ManualClock::new(10);
         let mut clock0 = Clock::new(&src0);
         clock0.set_epoch(0);
 
 
-        let src1 = ManualClock(Cell::new(0));
+        let src1 = ManualClock::new(0);
         let mut clock1 = Clock::new(&src1);
         clock1.set_epoch(1);
 
@@ -466,7 +478,7 @@ mod tests {
 
     #[test]
     fn should_ignore_clocks_too_far_forward() {
-        let src = ManualClock(Cell::new(0));
+        let src = ManualClock::new(0);
         let mut clock = Clock::new_with_max_diff(&src, 10);
         assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_err());
         assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 1, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 1, count: 1 })
@@ -474,9 +486,9 @@ mod tests {
 
     #[test]
     fn should_account_for_time_passing_when_checking_max_error() {
-        let src = ManualClock(Cell::new(0));
+        let src = ManualClock::new(0);
         let mut clock = Clock::new_with_max_diff(&src, 10);
-        src.0.set(1);
+        src.set_time(1);
         assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_ok());
     }
 
