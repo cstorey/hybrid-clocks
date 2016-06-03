@@ -22,7 +22,6 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::io;
 use std::ops::Sub;
-use std::cell::Cell;
 use time::Duration;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
@@ -256,23 +255,24 @@ impl<T: fmt::Display> fmt::Display for Timestamp<T> {
     }
 }
 
-pub struct ManualClock(Cell<u64>);
+#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
+pub struct ManualClock(u64);
 
 impl<'a> ClockSource for ManualClock {
     type Time = u64;
     type Delta = u64;
     fn now(&mut self) -> Self::Time {
-        self.0.get()
+        self.0
     }
 }
 
 
 impl ManualClock {
     pub fn new(t: u64) -> ManualClock {
-        ManualClock(Cell::new(t))
+        ManualClock(t)
     }
-    pub fn set_time(&self, t: u64) {
-        self.0.set(t)
+    pub fn set_time(&mut self, t: u64) {
+        self.0 = t
     }
 }
 
