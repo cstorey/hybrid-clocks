@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Clock` struct in crate `hybrid_clocks`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Clock">
+
+    <title>hybrid_clocks::Clock - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>hybrid_clocks</a></p><script>window.sidebarCurrent = {name: 'Clock', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>hybrid_clocks</a>::<wbr><a class='struct' href=''>Clock</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-277' class='srclink' href='../src/hybrid_clocks/src/lib.rs.html#76-81' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Clock&lt;S:&nbsp;<a class='trait' href='../hybrid_clocks/trait.ClockSource.html' title='hybrid_clocks::ClockSource'>ClockSource</a>&gt; {
+    // some fields omitted
+}</pre><div class='docblock'><p>The main clock type.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../hybrid_clocks/struct.Clock.html' title='hybrid_clocks::Clock'>Clock</a>&lt;<a class='struct' href='../hybrid_clocks/struct.Wall.html' title='hybrid_clocks::Wall'>Wall</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-283' class='srclink' href='../src/hybrid_clocks/src/lib.rs.html#83-88' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.wall' class='method'><code>fn <a href='#method.wall' class='fnname'>wall</a>() -&gt; <a class='struct' href='../hybrid_clocks/struct.Clock.html' title='hybrid_clocks::Clock'>Clock</a>&lt;<a class='struct' href='../hybrid_clocks/struct.Wall.html' title='hybrid_clocks::Wall'>Wall</a>&gt;</code></h4>
+<div class='docblock'><p>Returns a <code>Clock</code> that uses wall-clock time.</p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../hybrid_clocks/struct.Clock.html' title='hybrid_clocks::Clock'>Clock</a>&lt;<a class='struct' href='../hybrid_clocks/struct.ManualClock.html' title='hybrid_clocks::ManualClock'>ManualClock</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-285' class='srclink' href='../src/hybrid_clocks/src/lib.rs.html#90-98' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.manual' class='method'><code>fn <a href='#method.manual' class='fnname'>manual</a>(t: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; <a class='struct' href='../hybrid_clocks/struct.Clock.html' title='hybrid_clocks::Clock'>Clock</a>&lt;<a class='struct' href='../hybrid_clocks/struct.ManualClock.html' title='hybrid_clocks::ManualClock'>ManualClock</a>&gt;</code></h4>
+<div class='docblock'><p>Returns a <code>Clock</code> that uses wall-clock time.</p>
+</div><h4 id='method.set_time' class='method'><code>fn <a href='#method.set_time' class='fnname'>set_time</a>(&amp;mut self, t: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>)</code></h4>
+</div><h3 class='impl'><span class='in-band'><code>impl&lt;S:&nbsp;<a class='trait' href='../hybrid_clocks/trait.ClockSource.html' title='hybrid_clocks::ClockSource'>ClockSource</a>&gt; <a class='struct' href='../hybrid_clocks/struct.Clock.html' title='hybrid_clocks::Clock'>Clock</a>&lt;S&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-291' class='srclink' href='../src/hybrid_clocks/src/lib.rs.html#101-187' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(src: S) -&gt; Self</code></h4>
+<div class='docblock'><p>Creates a clock with <code>src</code> as the time provider.</p>
+</div><h4 id='method.new_with_max_diff' class='method'><code>fn <a href='#method.new_with_max_diff' class='fnname'>new_with_max_diff</a>(src: S, diff: S::Delta) -&gt; Self</code></h4>
+<div class='docblock'><p>Creates a clock with <code>src</code> as the time provider, and <code>diff</code> as how far
+in the future we don&#39;t mind seeing updates from.</p>
+</div><h4 id='method.set_epoch' class='method'><code>fn <a href='#method.set_epoch' class='fnname'>set_epoch</a>(&amp;mut self, epoch: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>)</code></h4>
+<div class='docblock'><p>Used to create a new &quot;epoch&quot; of clock times, mostly useful as a manual
+override when a cluster member has skewed the clock time far
+into the future.</p>
+</div><h4 id='method.now' class='method'><code>fn <a href='#method.now' class='fnname'>now</a>(&amp;mut self) -&gt; <a class='struct' href='../hybrid_clocks/struct.Timestamp.html' title='hybrid_clocks::Timestamp'>Timestamp</a>&lt;S::Time&gt;</code></h4>
+<div class='docblock'><p>Creates a unique monotonic timestamp suitable for annotating messages we send.</p>
+</div><h4 id='method.observe' class='method'><code>fn <a href='#method.observe' class='fnname'>observe</a>(&amp;mut self, msg: &amp;<a class='struct' href='../hybrid_clocks/struct.Timestamp.html' title='hybrid_clocks::Timestamp'>Timestamp</a>&lt;S::Time&gt;) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>,&nbsp;<a class='enum' href='../hybrid_clocks/enum.Error.html' title='hybrid_clocks::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Accepts a timestamp from an incoming message, and updates the clock
+so that further calls to <code>now</code> will always return a timestamp that
+<code>happens-after</code> either locally generated timestamps or that of the
+input message. Returns an Error iff the delta from our local lock to
+the observed timestamp is greater than our configured limit.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;S:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> + <a class='trait' href='../hybrid_clocks/trait.ClockSource.html' title='hybrid_clocks::ClockSource'>ClockSource</a>&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../hybrid_clocks/struct.Clock.html' title='hybrid_clocks::Clock'>Clock</a>&lt;S&gt; <span class='where'>where S::Time: <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>, S::Delta: <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a></span></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-259' class='srclink' href='../src/hybrid_clocks/src/lib.rs.html#75' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../hybrid_clocks/struct.Clock.html' title='hybrid_clocks::Clock'>Clock</a>&lt;S&gt;</code></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl&lt;S:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> + <a class='trait' href='../hybrid_clocks/trait.ClockSource.html' title='hybrid_clocks::ClockSource'>ClockSource</a>&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../hybrid_clocks/struct.Clock.html' title='hybrid_clocks::Clock'>Clock</a>&lt;S&gt; <span class='where'>where S::Time: <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a>, S::Delta: <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a></span></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-267' class='srclink' href='../src/hybrid_clocks/src/lib.rs.html#75' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "hybrid_clocks";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

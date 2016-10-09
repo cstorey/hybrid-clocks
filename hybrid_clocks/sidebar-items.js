@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Error",""]],"struct":[["Clock","The main clock type."],["ManualClock",""],["Timestamp","A value that represents a logical timestamp."],["Wall","A clock source that returns wall-clock in nanoseconds."],["WallT","Nanoseconds since unix epoch"]],"trait":[["ClockSource","Describes the interface that the inner clock source must provide."]]});
