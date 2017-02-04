@@ -283,8 +283,7 @@ mod serde_impl;
 
 #[cfg(test)]
 mod tests {
-    use super::{Clock, ClockSource, Timestamp, WallT, ManualClock};
-    use std::cmp::Ord;
+    use super::{Clock, Timestamp, WallT, ManualClock};
     use std::io::Cursor;
     use quickcheck::{self,Arbitrary, Gen};
 
