@@ -5,6 +5,8 @@
 //! strictly-monotonic clock that can be used to determine if one event
 //! `happens-before` another.
 
+#![deny(warnings)]
+
 extern crate time;
 extern crate byteorder;
 #[cfg(test)]
@@ -283,8 +285,7 @@ mod serde_impl;
 
 #[cfg(test)]
 mod tests {
-    use super::{Clock, ClockSource, Timestamp, WallT, ManualClock};
-    use std::cmp::Ord;
+    use super::{Clock, Timestamp, WallT, ManualClock};
     use std::io::Cursor;
     use quickcheck::{self,Arbitrary, Gen};
 
@@ -523,7 +524,7 @@ mod tests {
     #[cfg(feature = "serde")]
     mod serde {
         use serde_json;
-        use {Clock,Timestamp,WallT};
+        use {Timestamp,WallT};
         use quickcheck;
         #[test]
         fn should_round_trip_via_serde() {
