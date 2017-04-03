@@ -145,16 +145,13 @@ impl<S: ClockSource> Clock<S> {
                 lp.epoch.cmp(&observation.epoch),
                 lp.time.cmp(&observation.time),
                 lp.count.cmp(&observation.count)) {
-            (Ordering::Less, _, _) => {
+            (Ordering::Less, _, _) | (Ordering::Equal, Ordering::Less, _) => {
                 observation.clone()
             },
-            (_, Ordering::Less, _) => {
-                observation.clone()
-            },
-            (_, Ordering::Equal, Ordering::Less) => {
+            (Ordering::Equal, Ordering::Equal, Ordering::Less) => {
                 Timestamp { count: observation.count + 1, .. lp }
             },
-            (_, _, _) => {
+            _ => {
                 Timestamp { count: lp.count + 1, .. lp }
             },
         };
@@ -470,6 +467,14 @@ mod tests {
         assert_eq!(b, Timestamp { epoch: 1, time: 1, count: 2 });
     }
 
+    #[test]
+    fn should_use_time_from_larger_observed_epoch() {
+        let mut clock0 = Clock::manual(10);
+
+        let advanced_epoch = Timestamp {epoch: 100, time: 1, count: 0};
+        let t = observing(&mut clock0, &advanced_epoch).unwrap();
+        assert_eq!(t, Timestamp {epoch: 100, time: 1, count: 1});
+    }
 
     #[test]
     fn should_ignore_clocks_too_far_forward() {
