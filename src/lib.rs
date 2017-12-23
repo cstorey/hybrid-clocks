@@ -510,17 +510,33 @@ mod tests {
         assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_ok());
     }
 
+    struct TimestampGen;
+
+    impl TimestampGen {
+        fn new() -> Self {
+            TimestampGen
+        }
+    }
+
+    impl Generator for TimestampGen {
+        type Item = Timestamp<WallT>;
+        fn generate<I: Iterator<Item = u8>>(&self, src: &mut I) -> Maybe<Self::Item> {
+            let epoch = u32s().generate(src)?;
+            let time = u64s().map(WallT).generate(src)?;
+            let count = u32s().generate(src)?;
+            Ok(Timestamp { epoch, time, count })
+        }
+    }
+
     #[test]
     fn should_round_trip_via_key() {
-        fn prop(ts: Timestamp<WallT>) -> bool {
+        property(TimestampGen::new()).check(|ts| {
             let mut bs = Vec::new();
             ts.write_bytes(&mut bs).expect("write_bytes");
             let ts2 = Timestamp::read_bytes(Cursor::new(&bs)).expect("read_bytes");
             // println!("{:?}\t{:?}", ts == ts2, bs);
             ts == ts2
-        }
-
-        quickcheck::quickcheck(prop as fn(Timestamp<WallT>) -> bool)
+        });
     }
 
     #[test]
