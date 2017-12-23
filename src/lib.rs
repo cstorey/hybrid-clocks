@@ -285,7 +285,7 @@ mod tests {
     use super::{Clock, Timestamp, WallT, ManualClock};
     extern crate suppositions;
     use std::io::Cursor;
-    use quickcheck::{self,Arbitrary, Gen};
+    use quickcheck::{Arbitrary, Gen};
     use self::suppositions::*;
     use self::suppositions::generators::*;
 
@@ -541,7 +541,7 @@ mod tests {
 
     #[test]
     fn byte_repr_should_order_as_timestamps() {
-        fn prop(ta: Timestamp<WallT>, tb: Timestamp<WallT>) -> bool {
+        property((TimestampGen::new(), TimestampGen::new())).check(|(ta, tb)| {
             use std::cmp::Ord;
 
             let mut ba = Vec::new();
@@ -555,9 +555,7 @@ mod tests {
                     ba, bb, ba.cmp(&bb));
             */
             ta.cmp(&tb) == ba.cmp(&bb)
-        }
-
-        quickcheck::quickcheck(prop as fn(Timestamp<WallT>, Timestamp<WallT>) -> bool)
+        })
     }
 
     #[cfg(feature = "serde")]
