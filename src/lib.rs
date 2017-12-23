@@ -283,8 +283,11 @@ mod serde_impl;
 #[cfg(test)]
 mod tests {
     use super::{Clock, Timestamp, WallT, ManualClock};
+    extern crate suppositions;
     use std::io::Cursor;
     use quickcheck::{self,Arbitrary, Gen};
+    use self::suppositions::*;
+    use self::suppositions::generators::*;
 
     impl Arbitrary for WallT {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -474,6 +477,21 @@ mod tests {
         let advanced_epoch = Timestamp {epoch: 100, time: 1, count: 0};
         let t = observing(&mut clock0, &advanced_epoch).unwrap();
         assert_eq!(t, Timestamp {epoch: 100, time: 1, count: 1});
+    }
+
+    #[test]
+    fn supposedly_use_time_from_larger_observed_epoch() {
+        property((u64s(), u32s(), u64s(), u32s()).map(|(t0, ts1_epoch, ts1_time, ts1_cnt)| {
+                let advanced_epoch = Timestamp {
+                    epoch: ts1_epoch, time: ts1_time, count: ts1_cnt};
+                (t0, advanced_epoch)
+            })).check(|(t0, advanced_epoch)| {
+                let mut clock0 = Clock::manual(t0);
+                let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
+                println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
+                assert!(t2 > advanced_epoch,
+                        "{:?} > {:?}", t2, advanced_epoch)
+            });
     }
 
     #[test]
