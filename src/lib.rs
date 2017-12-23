@@ -9,7 +9,6 @@
 
 extern crate time;
 extern crate byteorder;
-#[cfg(test)]
 extern crate quickcheck;
 
 #[macro_use]
@@ -562,16 +561,15 @@ mod tests {
     mod serde {
         use serde_json;
         use {Timestamp,WallT};
-        use quickcheck;
+        use super::suppositions::*;
+        use super::suppositions::generators::*;
         #[test]
         fn should_round_trip_via_serde() {
-            fn prop(ts: Timestamp<WallT>) -> bool {
+            property(TimestampGen::new()).check(|ts| {
                 let s = serde_json::to_string(&ts).expect("to-json");
                 let ts2 = serde_json::from_str(&s).expect("from-json");
                 ts == ts2
-            }
-
-            quickcheck::quickcheck(prop as fn(Timestamp<WallT>) -> bool)
+            })
         }
 
 
