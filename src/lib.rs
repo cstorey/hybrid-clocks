@@ -17,6 +17,8 @@ extern crate quick_error;
 extern crate serde;
 #[cfg(all(feature = "serde", test))]
 extern crate serde_json;
+#[cfg(test)]
+extern crate suppositions;
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -281,10 +283,9 @@ mod serde_impl;
 #[cfg(test)]
 mod tests {
     use super::{Clock, Timestamp, WallT, ManualClock};
-    extern crate suppositions;
     use std::io::Cursor;
-    use self::suppositions::*;
-    use self::suppositions::generators::*;
+    use suppositions::*;
+    use suppositions::generators::*;
 
     fn observing<'a>(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result<Timestamp<u64>, super::Error> {
         try!(clock.observe(msg));
@@ -536,8 +537,8 @@ mod tests {
     mod serde {
         use serde_json;
         use {Timestamp,WallT};
-        use super::suppositions::*;
-        use super::suppositions::generators::*;
+        use suppositions::*;
+        use suppositions::generators::*;
         #[test]
         fn should_round_trip_via_serde() {
             property(TimestampGen::new()).check(|ts| {
