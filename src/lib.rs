@@ -9,7 +9,6 @@
 
 extern crate time;
 extern crate byteorder;
-extern crate quickcheck;
 
 #[macro_use]
 extern crate quick_error;
@@ -284,32 +283,8 @@ mod tests {
     use super::{Clock, Timestamp, WallT, ManualClock};
     extern crate suppositions;
     use std::io::Cursor;
-    use quickcheck::{Arbitrary, Gen};
     use self::suppositions::*;
     use self::suppositions::generators::*;
-
-    impl Arbitrary for WallT {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            WallT(Arbitrary::arbitrary(g))
-        }
-        fn shrink(&self) -> Box<Iterator<Item = Self> + 'static> {
-            Box::new(self.0.shrink()
-                    .map(WallT))
-        }
-    }
-
-    impl<T: Arbitrary + Copy> Arbitrary for Timestamp<T> {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let e = Arbitrary::arbitrary(g);
-            let w = Arbitrary::arbitrary(g);
-            let l = Arbitrary::arbitrary(g);
-            Timestamp { epoch: e, time: w, count: l }
-        }
-        fn shrink(&self) -> Box<Iterator<Item = Self> + 'static> {
-            Box::new((self.epoch, self.time, self.count).shrink()
-                    .map(|(e, w, l)| Timestamp { epoch: e, time: w, count: l }))
-        }
-    }
 
     fn observing<'a>(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result<Timestamp<u64>, super::Error> {
         try!(clock.observe(msg));
