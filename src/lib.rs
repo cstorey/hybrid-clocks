@@ -536,9 +536,8 @@ mod tests {
     #[cfg(feature = "serde")]
     mod serde {
         use serde_json;
-        use {Timestamp,WallT};
         use suppositions::*;
-        use suppositions::generators::*;
+        use super::*;
         #[test]
         fn should_round_trip_via_serde() {
             property(TimestampGen::new()).check(|ts| {
@@ -547,7 +546,5 @@ mod tests {
                 ts == ts2
             })
         }
-
-
     }
 }
