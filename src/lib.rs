@@ -467,7 +467,7 @@ mod tests {
     }
 
     #[test]
-    fn supposedly_use_time_from_larger_observed_epoch() {
+    fn supposedly_be_larger_than_observed_time() {
         property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| {
                 let mut clock0 = Clock::manual(t0);
                 let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
@@ -476,6 +476,19 @@ mod tests {
                         "{:?} > {:?}", t2, advanced_epoch)
             });
     }
+
+    #[test]
+    fn supposedly_be_larger_than_observed_clock() {
+        property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| {
+                let mut clock0 = Clock::manual(t0);
+                let t1 = clock0.now();
+                let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
+                println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
+                assert!(t2 > t1,
+                        "{:?} > {:?}", t2, t1)
+            });
+    }
+
 
     #[test]
     fn should_ignore_clocks_too_far_forward() {
