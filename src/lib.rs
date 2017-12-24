@@ -9,8 +9,6 @@
 
 extern crate time;
 extern crate byteorder;
-#[cfg(test)]
-extern crate quickcheck;
 
 #[macro_use]
 extern crate quick_error;
@@ -19,6 +17,8 @@ extern crate quick_error;
 extern crate serde;
 #[cfg(all(feature = "serde", test))]
 extern crate serde_json;
+#[cfg(test)]
+extern crate suppositions;
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -284,34 +284,24 @@ mod serde_impl;
 mod tests {
     use super::{Clock, Timestamp, WallT, ManualClock};
     use std::io::Cursor;
-    use quickcheck::{self,Arbitrary, Gen};
-
-    impl Arbitrary for WallT {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            WallT(Arbitrary::arbitrary(g))
-        }
-        fn shrink(&self) -> Box<Iterator<Item = Self> + 'static> {
-            Box::new(self.0.shrink()
-                    .map(WallT))
-        }
-    }
-
-    impl<T: Arbitrary + Copy> Arbitrary for Timestamp<T> {
-        fn arbitrary<G: Gen>(g: &mut G) -> Self {
-            let e = Arbitrary::arbitrary(g);
-            let w = Arbitrary::arbitrary(g);
-            let l = Arbitrary::arbitrary(g);
-            Timestamp { epoch: e, time: w, count: l }
-        }
-        fn shrink(&self) -> Box<Iterator<Item = Self> + 'static> {
-            Box::new((self.epoch, self.time, self.count).shrink()
-                    .map(|(e, w, l)| Timestamp { epoch: e, time: w, count: l }))
-        }
-    }
+    use suppositions::*;
+    use suppositions::generators::*;
 
     fn observing<'a>(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result<Timestamp<u64>, super::Error> {
         try!(clock.observe(msg));
         Ok(clock.now())
+    }
+
+    fn wallclocks() -> Box<GeneratorObject<Item=WallT>> {
+        u64s().map(WallT).boxed()
+    }
+
+    fn timestamps<C: Generator + 'static>(times: C) -> Box<GeneratorObject<Item=Timestamp<C::Item>>> {
+        let epochs = u32s();
+        let counts = u32s();
+        (epochs, times, counts)
+            .map(|(epoch, time, count)| Timestamp { epoch, time, count })
+            .boxed()
     }
 
     #[test]
@@ -477,6 +467,30 @@ mod tests {
     }
 
     #[test]
+    fn supposedly_be_larger_than_observed_time() {
+        property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| {
+                let mut clock0 = Clock::manual(t0);
+                let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
+                println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
+                assert!(t2 > advanced_epoch,
+                        "{:?} > {:?}", t2, advanced_epoch)
+            });
+    }
+
+    #[test]
+    fn supposedly_be_larger_than_observed_clock() {
+        property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| {
+                let mut clock0 = Clock::manual(t0);
+                let t1 = clock0.now();
+                let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
+                println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
+                assert!(t2 > t1,
+                        "{:?} > {:?}", t2, t1)
+            });
+    }
+
+
+    #[test]
     fn should_ignore_clocks_too_far_forward() {
         let src = ManualClock::new(0);
         let mut clock = Clock::new_with_max_diff(src, 10);
@@ -494,20 +508,20 @@ mod tests {
 
     #[test]
     fn should_round_trip_via_key() {
-        fn prop(ts: Timestamp<WallT>) -> bool {
+        property(timestamps(wallclocks())).check(|ts| {
             let mut bs = Vec::new();
             ts.write_bytes(&mut bs).expect("write_bytes");
             let ts2 = Timestamp::read_bytes(Cursor::new(&bs)).expect("read_bytes");
             // println!("{:?}\t{:?}", ts == ts2, bs);
             ts == ts2
-        }
-
-        quickcheck::quickcheck(prop as fn(Timestamp<WallT>) -> bool)
+        });
     }
 
     #[test]
     fn byte_repr_should_order_as_timestamps() {
-        fn prop(ta: Timestamp<WallT>, tb: Timestamp<WallT>) -> bool {
+        property((timestamps(wallclocks()),
+                    timestamps(wallclocks()))
+                ).check(|(ta, tb)| {
             use std::cmp::Ord;
 
             let mut ba = Vec::new();
@@ -521,27 +535,21 @@ mod tests {
                     ba, bb, ba.cmp(&bb));
             */
             ta.cmp(&tb) == ba.cmp(&bb)
-        }
-
-        quickcheck::quickcheck(prop as fn(Timestamp<WallT>, Timestamp<WallT>) -> bool)
+        })
     }
 
     #[cfg(feature = "serde")]
     mod serde {
         use serde_json;
-        use {Timestamp,WallT};
-        use quickcheck;
+        use suppositions::*;
+        use super::*;
         #[test]
         fn should_round_trip_via_serde() {
-            fn prop(ts: Timestamp<WallT>) -> bool {
+            property(timestamps(u64s())).check(|ts| {
                 let s = serde_json::to_string(&ts).expect("to-json");
                 let ts2 = serde_json::from_str(&s).expect("from-json");
                 ts == ts2
-            }
-
-            quickcheck::quickcheck(prop as fn(Timestamp<WallT>) -> bool)
+            });
         }
-
-
     }
 }
