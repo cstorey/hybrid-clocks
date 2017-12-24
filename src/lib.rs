@@ -456,11 +456,7 @@ mod tests {
 
     #[test]
     fn supposedly_use_time_from_larger_observed_epoch() {
-        property((u64s(), u32s(), u64s(), u32s()).map(|(t0, ts1_epoch, ts1_time, ts1_cnt)| {
-                let advanced_epoch = Timestamp {
-                    epoch: ts1_epoch, time: ts1_time, count: ts1_cnt};
-                (t0, advanced_epoch)
-            })).check(|(t0, advanced_epoch)| {
+        property((u64s(), TimestampGen::new(u64s()))).check(|(t0, advanced_epoch)| {
                 let mut clock0 = Clock::manual(t0);
                 let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
                 println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
@@ -485,19 +481,25 @@ mod tests {
         assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_ok());
     }
 
-    struct TimestampGen;
+    fn wallclocks() -> Box<GeneratorObject<Item=WallT>> {
+        u64s().map(WallT).boxed()
+    }
 
-    impl TimestampGen {
-        fn new() -> Self {
-            TimestampGen
+    struct TimestampGen<C> {
+        time: C,
+    }
+
+    impl<C> TimestampGen<C> {
+        fn new(time: C) -> Self {
+            TimestampGen { time }
         }
     }
 
-    impl Generator for TimestampGen {
-        type Item = Timestamp<WallT>;
+    impl<C: Generator> Generator for TimestampGen<C> {
+        type Item = Timestamp<C::Item>;
         fn generate<I: Iterator<Item = u8>>(&self, src: &mut I) -> Maybe<Self::Item> {
             let epoch = u32s().generate(src)?;
-            let time = u64s().map(WallT).generate(src)?;
+            let time = self.time.generate(src)?;
             let count = u32s().generate(src)?;
             Ok(Timestamp { epoch, time, count })
         }
@@ -505,7 +507,7 @@ mod tests {
 
     #[test]
     fn should_round_trip_via_key() {
-        property(TimestampGen::new()).check(|ts| {
+        property(TimestampGen::new(wallclocks())).check(|ts| {
             let mut bs = Vec::new();
             ts.write_bytes(&mut bs).expect("write_bytes");
             let ts2 = Timestamp::read_bytes(Cursor::new(&bs)).expect("read_bytes");
@@ -516,7 +518,9 @@ mod tests {
 
     #[test]
     fn byte_repr_should_order_as_timestamps() {
-        property((TimestampGen::new(), TimestampGen::new())).check(|(ta, tb)| {
+        property((TimestampGen::new(wallclocks()),
+                    TimestampGen::new(wallclocks()))
+                ).check(|(ta, tb)| {
             use std::cmp::Ord;
 
             let mut ba = Vec::new();
@@ -540,11 +544,11 @@ mod tests {
         use super::*;
         #[test]
         fn should_round_trip_via_serde() {
-            property(TimestampGen::new()).check(|ts| {
+            property(TimestampGen::new(u64s())).check(|ts| {
                 let s = serde_json::to_string(&ts).expect("to-json");
                 let ts2 = serde_json::from_str(&s).expect("from-json");
                 ts == ts2
-            })
+            });
         }
     }
 }
