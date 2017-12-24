@@ -292,6 +292,18 @@ mod tests {
         Ok(clock.now())
     }
 
+    fn wallclocks() -> Box<GeneratorObject<Item=WallT>> {
+        u64s().map(WallT).boxed()
+    }
+
+    fn timestamps<C: Generator + 'static>(times: C) -> Box<GeneratorObject<Item=Timestamp<C::Item>>> {
+        let epochs = u32s();
+        let counts = u32s();
+        (epochs, times, counts)
+            .map(|(epoch, time, count)| Timestamp { epoch, time, count })
+            .boxed()
+    }
+
     #[test]
     fn fig_6_proc_0_a() {
         let mut clock = Clock::manual(0);
@@ -479,18 +491,6 @@ mod tests {
         let mut clock = Clock::new_with_max_diff(src, 10);
         clock.set_time(1);
         assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_ok());
-    }
-
-    fn wallclocks() -> Box<GeneratorObject<Item=WallT>> {
-        u64s().map(WallT).boxed()
-    }
-
-    fn timestamps<C: Generator + 'static>(times: C) -> Box<GeneratorObject<Item=Timestamp<C::Item>>> {
-            let epochs = u32s();
-            let counts = u32s();
-            (epochs, times, counts)
-                .map(|(epoch, time, count)| Timestamp { epoch, time, count })
-                .boxed()
     }
 
     #[test]
