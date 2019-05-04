@@ -20,7 +20,7 @@ extern crate serde_json;
 #[cfg(test)]
 extern crate suppositions;
 
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt};
 use std::cell::Cell;
 use std::cmp::Ordering;
 use std::fmt;
@@ -202,11 +202,16 @@ impl<S: ClockSource> Clock<S> {
 
 impl Timestamp<WallT> {
     pub fn write_bytes<W: io::Write>(&self, mut wr: W) -> Result<(), io::Error> {
-        let wall = &self.time;
-        try!(wr.write_u32::<BigEndian>(self.epoch));
-        try!(wr.write_u64::<BigEndian>(wall.0));
-        try!(wr.write_u32::<BigEndian>(self.count));
-        Ok(())
+        wr.write_all(&self.to_bytes())?;
+        return Ok(());
+    }
+
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut res = [0; 16];
+        res[0..4].copy_from_slice(&self.epoch.to_be_bytes());
+        res[4..12].copy_from_slice(&self.time.0.to_be_bytes());
+        res[12..16].copy_from_slice(&self.count.to_be_bytes());
+        return res;
     }
 
     pub fn read_bytes<R: io::Read>(mut r: R) -> Result<Self, io::Error> {
