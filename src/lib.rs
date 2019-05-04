@@ -7,7 +7,6 @@
 
 #![deny(warnings)]
 
-extern crate byteorder;
 extern crate time;
 
 #[macro_use]
@@ -20,12 +19,13 @@ extern crate serde_json;
 #[cfg(test)]
 extern crate suppositions;
 
-use byteorder::{BigEndian, ReadBytesExt};
 use std::cell::Cell;
 use std::cmp::Ordering;
+use std::convert::TryInto;
 use std::fmt;
 use std::io;
 use std::ops::Sub;
+
 use time::Duration;
 
 quick_error! {
@@ -215,16 +215,20 @@ impl Timestamp<WallT> {
     }
 
     pub fn read_bytes<R: io::Read>(mut r: R) -> Result<Self, io::Error> {
-        // use ClockSource;
-        let epoch = try!(r.read_u32::<BigEndian>());
-        let nanos = try!(r.read_u64::<BigEndian>());
-        let l = try!(r.read_u32::<BigEndian>());
-        let wall = WallT(nanos);
-        Ok(Timestamp {
+        let mut buf = [0u8; 16];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_bytes(buf))
+    }
+
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        let epoch = u32::from_be_bytes(bytes[0..4].try_into().unwrap());
+        let nanos = u64::from_be_bytes(bytes[4..12].try_into().unwrap());
+        let count = u32::from_be_bytes(bytes[12..16].try_into().unwrap());
+        Timestamp {
             epoch: epoch,
-            time: wall,
-            count: l,
-        })
+            time: WallT(nanos),
+            count: count,
+        }
     }
 }
 
