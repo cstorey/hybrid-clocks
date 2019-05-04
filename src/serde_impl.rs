@@ -1,6 +1,6 @@
-use serde::{ser, de};
-use serde::ser::SerializeTupleStruct;
 use super::{Timestamp, WallT};
+use serde::ser::SerializeTupleStruct;
+use serde::{de, ser};
 use std::fmt;
 
 impl<T: ser::Serialize> ser::Serialize for Timestamp<T> {
@@ -15,41 +15,56 @@ impl<T: ser::Serialize> ser::Serialize for Timestamp<T> {
 
 impl<'de, T: de::Deserialize<'de>> de::Deserialize<'de> for Timestamp<T> {
     fn deserialize<D>(deserializer: D) -> ::std::result::Result<Timestamp<T>, D::Error>
-        where D: de::Deserializer<'de>
+    where
+        D: de::Deserializer<'de>,
     {
         struct TimestampVisitor<T>(::std::marker::PhantomData<T>);
         impl<'de, T> de::Visitor<'de> for TimestampVisitor<T>
-            where T: de::Deserialize<'de> {
+        where
+            T: de::Deserialize<'de>,
+        {
             type Value = Timestamp<T>;
 
             #[inline]
-            fn visit_seq<V>(self,
-                            mut visitor: V)
-                            -> ::std::result::Result<Timestamp<T>, V::Error>
-                where V: de::SeqAccess<'de>,
-                    T: de::Deserialize<'de>
+            fn visit_seq<V>(self, mut visitor: V) -> ::std::result::Result<Timestamp<T>, V::Error>
+            where
+                V: de::SeqAccess<'de>,
+                T: de::Deserialize<'de>,
             {
                 {
                     let field0 = match try!(visitor.next_element()) {
                         Some(value) => value,
                         None => {
-                            return Err(de::Error::invalid_length(0, &"Needed 3 values for Timestamp"));
+                            return Err(de::Error::invalid_length(
+                                0,
+                                &"Needed 3 values for Timestamp",
+                            ));
                         }
                     };
                     let field1 = match try!(visitor.next_element()) {
                         Some(value) => value,
                         None => {
-                            return Err(de::Error::invalid_length(1, &"Needed 3 values for Timestamp"));
+                            return Err(de::Error::invalid_length(
+                                1,
+                                &"Needed 3 values for Timestamp",
+                            ));
                         }
                     };
                     let field2 = match try!(visitor.next_element()) {
                         Some(value) => value,
                         None => {
-                            return Err(de::Error::invalid_length(2, &"Needed 3 values for Timestamp"));
+                            return Err(de::Error::invalid_length(
+                                2,
+                                &"Needed 3 values for Timestamp",
+                            ));
                         }
                     };
 
-                    Ok(Timestamp { epoch: field0, time: field1, count: field2 })
+                    Ok(Timestamp {
+                        epoch: field0,
+                        time: field1,
+                        count: field2,
+                    })
                 }
             }
 
@@ -58,9 +73,11 @@ impl<'de, T: de::Deserialize<'de>> de::Deserialize<'de> for Timestamp<T> {
             }
         }
 
-        deserializer.deserialize_tuple_struct("Timestamp",
-                                              3usize,
-                                              TimestampVisitor::<T>(::std::marker::PhantomData))
+        deserializer.deserialize_tuple_struct(
+            "Timestamp",
+            3usize,
+            TimestampVisitor::<T>(::std::marker::PhantomData),
+        )
     }
 }
 
@@ -74,7 +91,8 @@ impl ser::Serialize for WallT {
 
 impl<'de> de::Deserialize<'de> for WallT {
     fn deserialize<D>(deserializer: D) -> ::std::result::Result<WallT, D::Error>
-        where D: de::Deserializer<'de>
+    where
+        D: de::Deserializer<'de>,
     {
         struct WallTVisitor;
         impl<'de> de::Visitor<'de> for WallTVisitor {
@@ -82,13 +100,17 @@ impl<'de> de::Deserialize<'de> for WallT {
 
             #[inline]
             fn visit_seq<V>(self, mut visitor: V) -> ::std::result::Result<WallT, V::Error>
-                where V: de::SeqAccess<'de>
+            where
+                V: de::SeqAccess<'de>,
             {
                 {
                     let field0 = match try!(visitor.next_element()) {
                         Some(value) => value,
                         None => {
-                            return Err(de::Error::invalid_length(0, &"Needed 1 values for wall clock"));
+                            return Err(de::Error::invalid_length(
+                                0,
+                                &"Needed 1 values for wall clock",
+                            ));
                         }
                     };
                     Ok(WallT(field0))
@@ -100,8 +122,6 @@ impl<'de> de::Deserialize<'de> for WallT {
             }
         }
 
-        deserializer.deserialize_tuple_struct("WallT",
-                                              1usize,
-                                              WallTVisitor)
+        deserializer.deserialize_tuple_struct("WallT", 1usize, WallTVisitor)
     }
 }
