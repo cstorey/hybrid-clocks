@@ -7,13 +7,18 @@ extern crate tokio;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
+extern crate rand;
+extern crate serde_json;
 
 use std::fmt;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use failure::Error;
 use futures::{Future, Stream};
+use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
+use rand::Rng;
 use structopt::StructOpt;
 use tokio::net::UdpSocket;
 use tokio::prelude::*;
@@ -33,8 +38,10 @@ struct Listener {
 
 struct Client<S> {
     notifications: S,
-    to_send: Option<(Vec<u8>, SocketAddr)>,
+    to_send: Option<(Timestamp<WallT>, SocketAddr)>,
     socket: UdpSocket,
+    clock: Clock<Wall>,
+    peers: Vec<SocketAddr>,
 }
 
 impl Future for Listener {
@@ -58,8 +65,9 @@ impl<
     fn poll(&mut self) -> Poll<(), Error> {
         loop {
             if let Some((msg, peer)) = self.to_send.as_ref() {
-                let _ = try_ready!(self.socket.poll_send_to(&msg, &peer));
-                info!("Sent {} bytes to {}", msg.len(), peer);
+                let bs = serde_json::to_vec(&msg)?;
+                let slen = try_ready!(self.socket.poll_send_to(&bs, &peer));
+                info!("Sent {} ({} bytes) to {}", msg, slen, peer);
                 self.to_send = None;
             }
 
@@ -70,6 +78,11 @@ impl<
                 }
                 Some(n) => {
                     info!("Notification: {:?}", n);
+                    let idx = rand::thread_rng().gen_range(0, self.peers.len());
+                    let peer = self.peers[idx].clone();
+                    let t = self.clock.now();
+                    debug!("Queueing to:{}; msg:{}", peer, t);
+                    self.to_send = Some((t, peer))
                 }
             }
         }
@@ -91,10 +104,13 @@ fn main() -> Result<(), Error> {
     let notifications = tokio::timer::Interval::new(Instant::now(), Duration::from_secs(1));
     let to_send = None;
     info!("Client socket on: {}", socket.local_addr()?);
+    let clock = Clock::wall();
     let client = Client {
         notifications,
         socket,
         to_send,
+        clock,
+        peers: opt.peers,
     };
 
     tokio::run(client.map_err(|e| println!("Listener error = {:?}", e)));
