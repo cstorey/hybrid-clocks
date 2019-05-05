@@ -12,7 +12,6 @@ extern crate serde_json;
 
 use std::fmt;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use failure::Error;
@@ -49,7 +48,12 @@ impl Future for Listener {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<(), Error> {
-        unimplemented!()
+        let mut buf = [0; 1024];
+        let (recvd, peer) = try_ready!(self.socket.poll_recv_from(&mut buf));
+        debug!("Received {:?} bytes from {}", recvd, peer);
+        let d: Timestamp<WallT> = serde_json::from_slice(&buf[0..recvd])?;
+        info!("Update from {}: {}", peer, d);
+        Ok(Async::NotReady)
     }
 }
 
@@ -98,7 +102,7 @@ fn main() -> Result<(), Error> {
     let socket = UdpSocket::bind(&opt.listen_addr)?;
     info!("Listening on: {}", socket.local_addr()?);
 
-    let _listener = Listener { socket };
+    let listener = Listener { socket };
 
     let socket = UdpSocket::bind(&"0.0.0.0:0".parse().expect("parse 0"))?;
     let notifications = tokio::timer::Interval::new(Instant::now(), Duration::from_secs(1));
@@ -113,6 +117,12 @@ fn main() -> Result<(), Error> {
         peers: opt.peers,
     };
 
-    tokio::run(client.map_err(|e| println!("Listener error = {:?}", e)));
+    tokio::run(
+        client
+            .select(listener)
+            .map(|_| ())
+            .map_err(|(e, _)| e)
+            .map_err(|e| println!("Listener error = {:?}", e)),
+    );
     Ok(())
 }
