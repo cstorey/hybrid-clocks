@@ -754,7 +754,6 @@ mod tests {
     mod serde {
         use super::*;
         use serde_json;
-        use suppositions::*;
         #[test]
         fn should_round_trip_via_serde() {
             property(timestamps(u64s())).check(|ts| {
