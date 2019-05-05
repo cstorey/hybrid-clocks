@@ -1,7 +1,8 @@
 [package]
-name = "hlc-demo"
-version = "0.1.0"
 authors = ["Ceri Storey <cez@necrofish.org.uk>"]
 edition = "2018"
+name = "hlc-demo"
+version = "0.1.0"
 
 [dependencies]
+tokio = "0.1.19"
