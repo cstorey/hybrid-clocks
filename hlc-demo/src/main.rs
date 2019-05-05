@@ -40,17 +40,17 @@ struct Client {
     peers: Vec<SocketAddr>,
 }
 
-impl Future for Listener {
-    type Item = ();
+impl Stream for Listener {
+    type Item = Timestamp<WallT>;
     type Error = Error;
 
-    fn poll(&mut self) -> Poll<(), Error> {
+    fn poll(&mut self) -> Poll<Option<Timestamp<WallT>>, Error> {
         let mut buf = [0; 1024];
         let (recvd, peer) = try_ready!(self.socket.poll_recv_from(&mut buf));
         debug!("Received {:?} bytes from {}", recvd, peer);
         let d: Timestamp<WallT> = serde_json::from_slice(&buf[0..recvd])?;
         info!("Update from {}: {}", peer, d);
-        Ok(Async::NotReady)
+        Ok(Async::Ready(Some(d)))
     }
 }
 
@@ -104,7 +104,6 @@ fn main() -> Result<(), Error> {
 
     let to_send = None;
     info!("Client socket on: {}", socket.local_addr()?);
-    let clock = Clock::wall();
     let client = Client {
         socket,
         to_send,
@@ -112,12 +111,10 @@ fn main() -> Result<(), Error> {
     };
 
     tokio::run(
-        notifications
+        listener
+            .select(notifications)
             .forward(client)
-            .map(|_| ())
-            .select(listener)
-            .map(|(a, _)| a)
-            .map_err(|(e, _)| e)
+            .map(|(_src, _sink)| ())
             .map_err(|e| println!("Listener error = {:?}", e)),
     );
     Ok(())
