@@ -8,7 +8,6 @@
 #![deny(warnings)]
 
 extern crate time;
-extern crate byteorder;
 
 #[macro_use]
 extern crate quick_error;
@@ -20,13 +19,14 @@ extern crate serde_json;
 #[cfg(test)]
 extern crate suppositions;
 
+use std::cell::Cell;
 use std::cmp::Ordering;
+use std::convert::TryInto;
 use std::fmt;
 use std::io;
 use std::ops::Sub;
-use std::cell::Cell;
+
 use time::Duration;
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 quick_error! {
     #[derive(Debug)]
@@ -36,13 +36,12 @@ quick_error! {
     }
 }
 
-
 /// Describes the interface that the inner clock source must provide.
 pub trait ClockSource {
     /// Represents the described clock time.
-    type Time : Ord + Copy + Sub<Output=Self::Delta> + fmt::Debug;
+    type Time: Ord + Copy + Sub<Output = Self::Delta> + fmt::Debug;
     /// The difference between two timestamps.
-    type Delta : Ord;
+    type Delta: Ord;
     /// Returns the current clock time.
     fn now(&mut self) -> Self::Time;
 }
@@ -55,7 +54,7 @@ pub trait ClockSource {
 ///
 ///  * `a` happenned concurrently with `b`, or
 ///  * `a` is part of `b`'s causal history, or vica-versa.
-#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Timestamp<T> {
     /// An epoch counter.
     pub epoch: u32,
@@ -67,14 +66,14 @@ pub struct Timestamp<T> {
 }
 
 /// A clock source that returns wall-clock in nanoseconds.
-#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Wall;
-#[derive(Debug,Clone,Copy,PartialEq,Eq,PartialOrd,Ord,Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Nanoseconds since unix epoch
 pub struct WallT(u64);
 
 /// The main clock type.
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Clock<S: ClockSource> {
     src: S,
     epoch: u32,
@@ -99,14 +98,17 @@ impl Clock<ManualClock> {
     }
 }
 
-
 impl<S: ClockSource> Clock<S> {
     /// Creates a clock with `src` as the time provider.
     pub fn new(mut src: S) -> Self {
         let init = src.now();
         Clock {
             src: src,
-            last_observed: Timestamp { epoch: 0, time: init, count: 0 },
+            last_observed: Timestamp {
+                epoch: 0,
+                time: init,
+                count: 0,
+            },
             max_offset: None,
             epoch: 0,
         }
@@ -118,7 +120,11 @@ impl<S: ClockSource> Clock<S> {
         let init = src.now();
         Clock {
             src: src,
-            last_observed: Timestamp { epoch: 0, time: init, count: 0 },
+            last_observed: Timestamp {
+                epoch: 0,
+                time: init,
+                count: 0,
+            },
             max_offset: Some(diff),
             epoch: 0,
         }
@@ -142,17 +148,18 @@ impl<S: ClockSource> Clock<S> {
         let lp = self.last_observed.clone();
 
         self.last_observed = match (
-                lp.epoch.cmp(&observation.epoch),
-                lp.time.cmp(&observation.time),
-                lp.count.cmp(&observation.count)) {
-            (Ordering::Less, _, _) | (Ordering::Equal, Ordering::Less, _) => {
-                observation.clone()
+            lp.epoch.cmp(&observation.epoch),
+            lp.time.cmp(&observation.time),
+            lp.count.cmp(&observation.count),
+        ) {
+            (Ordering::Less, _, _) | (Ordering::Equal, Ordering::Less, _) => observation.clone(),
+            (Ordering::Equal, Ordering::Equal, Ordering::Less) => Timestamp {
+                count: observation.count + 1,
+                ..lp
             },
-            (Ordering::Equal, Ordering::Equal, Ordering::Less) => {
-                Timestamp { count: observation.count + 1, .. lp }
-            },
-            _ => {
-                Timestamp { count: lp.count + 1, .. lp }
+            _ => Timestamp {
+                count: lp.count + 1,
+                ..lp
             },
         };
     }
@@ -170,14 +177,22 @@ impl<S: ClockSource> Clock<S> {
     }
 
     fn read_pt(&mut self) -> Timestamp<S::Time> {
-        Timestamp { epoch: self.epoch, time: self.src.now(), count: 0 }
+        Timestamp {
+            epoch: self.epoch,
+            time: self.src.now(),
+            count: 0,
+        }
     }
 
-    fn verify_offset(&self, pt: &Timestamp<S::Time>, msg: &Timestamp<S::Time>) -> Result<(), Error> {
+    fn verify_offset(
+        &self,
+        pt: &Timestamp<S::Time>,
+        msg: &Timestamp<S::Time>,
+    ) -> Result<(), Error> {
         if let Some(ref max) = self.max_offset {
             let diff = msg.time - pt.time;
             if &diff > max {
-                return Err(Error::OffsetTooGreat)
+                return Err(Error::OffsetTooGreat);
             }
         }
 
@@ -187,31 +202,47 @@ impl<S: ClockSource> Clock<S> {
 
 impl Timestamp<WallT> {
     pub fn write_bytes<W: io::Write>(&self, mut wr: W) -> Result<(), io::Error> {
-        let wall = &self.time;
-        try!(wr.write_u32::<BigEndian>(self.epoch));
-        try!(wr.write_u64::<BigEndian>(wall.0));
-        try!(wr.write_u32::<BigEndian>(self.count));
-        Ok(())
+        wr.write_all(&self.to_bytes())?;
+        return Ok(());
+    }
+
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut res = [0; 16];
+        res[0..4].copy_from_slice(&self.epoch.to_be_bytes());
+        res[4..12].copy_from_slice(&self.time.0.to_be_bytes());
+        res[12..16].copy_from_slice(&self.count.to_be_bytes());
+        return res;
     }
 
     pub fn read_bytes<R: io::Read>(mut r: R) -> Result<Self, io::Error> {
-        // use ClockSource;
-        let epoch = try!(r.read_u32::<BigEndian>());
-        let nanos = try!(r.read_u64::<BigEndian>());
-        let l = try!(r.read_u32::<BigEndian>());
-        let wall = WallT(nanos);
-        Ok(Timestamp { epoch: epoch, time: wall, count: l })
+        let mut buf = [0u8; 16];
+        r.read_exact(&mut buf)?;
+        Ok(Self::from_bytes(buf))
+    }
+
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        let epoch = u32::from_be_bytes(bytes[0..4].try_into().unwrap());
+        let nanos = u64::from_be_bytes(bytes[4..12].try_into().unwrap());
+        let count = u32::from_be_bytes(bytes[12..16].try_into().unwrap());
+        Timestamp {
+            epoch: epoch,
+            time: WallT(nanos),
+            count: count,
+        }
     }
 }
 
-const NANOS_PER_SEC : u64 = 1000_000_000;
+const NANOS_PER_SEC: u64 = 1000_000_000;
 
 impl WallT {
     /// Returns a `time::Timespec` representing this timestamp.
     pub fn as_timespec(self) -> time::Timespec {
         let secs = self.0 / NANOS_PER_SEC;
         let nsecs = self.0 % NANOS_PER_SEC;
-        time::Timespec { sec: secs as i64, nsec: nsecs as i32 }
+        time::Timespec {
+            sec: secs as i64,
+            nsec: nsecs as i32,
+        }
     }
 
     /// Returns a `WallT` representing the `time::Timespec`.
@@ -233,7 +264,6 @@ impl Sub for WallT {
     }
 }
 
-
 impl ClockSource for Wall {
     type Time = WallT;
     type Delta = Duration;
@@ -245,7 +275,11 @@ impl ClockSource for Wall {
 impl fmt::Display for WallT {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let tm = time::at_utc(self.as_timespec());
-        write!(fmt, "{}", tm.strftime("%Y-%m-%dT%H:%M:%S.%fZ").expect("strftime"))
+        write!(
+            fmt,
+            "{}",
+            tm.strftime("%Y-%m-%dT%H:%M:%S.%fZ").expect("strftime")
+        )
     }
 }
 
@@ -265,7 +299,6 @@ impl<'a> ClockSource for ManualClock {
     }
 }
 
-
 impl ManualClock {
     pub fn new(t: u64) -> ManualClock {
         ManualClock(Cell::new(t))
@@ -275,28 +308,31 @@ impl ManualClock {
     }
 }
 
-
-
 #[cfg(feature = "serde")]
 mod serde_impl;
 
 #[cfg(test)]
 mod tests {
-    use super::{Clock, Timestamp, WallT, ManualClock};
+    use super::{Clock, ManualClock, Timestamp, WallT};
     use std::io::Cursor;
-    use suppositions::*;
     use suppositions::generators::*;
+    use suppositions::*;
 
-    fn observing<'a>(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result<Timestamp<u64>, super::Error> {
+    fn observing<'a>(
+        clock: &mut Clock<ManualClock>,
+        msg: &Timestamp<u64>,
+    ) -> Result<Timestamp<u64>, super::Error> {
         try!(clock.observe(msg));
         Ok(clock.now())
     }
 
-    fn wallclocks() -> Box<GeneratorObject<Item=WallT>> {
+    fn wallclocks() -> Box<GeneratorObject<Item = WallT>> {
         u64s().map(WallT).boxed()
     }
 
-    fn timestamps<C: Generator + 'static>(times: C) -> Box<GeneratorObject<Item=Timestamp<C::Item>>> {
+    fn timestamps<C: Generator + 'static>(
+        times: C,
+    ) -> Box<GeneratorObject<Item = Timestamp<C::Item>>> {
         let epochs = u32s();
         let counts = u32s();
         (epochs, times, counts)
@@ -308,45 +344,120 @@ mod tests {
     fn fig_6_proc_0_a() {
         let mut clock = Clock::manual(0);
         clock.set_time(10);
-        assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 0 })
+        assert_eq!(
+            clock.now(),
+            Timestamp {
+                epoch: 0,
+                time: 10,
+                count: 0
+            }
+        )
     }
 
     #[test]
     fn fig_6_proc_1_a() {
         let mut clock = Clock::manual(1);
-        assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 10, count: 1 })
+        assert_eq!(
+            observing(
+                &mut clock,
+                &Timestamp {
+                    epoch: 0,
+                    time: 10,
+                    count: 0
+                }
+            )
+            .unwrap(),
+            Timestamp {
+                epoch: 0,
+                time: 10,
+                count: 1
+            }
+        )
     }
 
     #[test]
     fn fig_6_proc_1_b() {
         let mut clock = Clock::manual(1);
-        let _ = observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 0 }).unwrap();
+        let _ = observing(
+            &mut clock,
+            &Timestamp {
+                epoch: 0,
+                time: 10,
+                count: 0,
+            },
+        )
+        .unwrap();
         clock.set_time(2);
-        assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 2 })
+        assert_eq!(
+            clock.now(),
+            Timestamp {
+                epoch: 0,
+                time: 10,
+                count: 2
+            }
+        )
     }
 
     #[test]
     fn fig_6_proc_2_b() {
         let mut clock = Clock::manual(0);
-        clock.last_observed = Timestamp { epoch: 0, time: 1, count: 0 };
+        clock.last_observed = Timestamp {
+            epoch: 0,
+            time: 1,
+            count: 0,
+        };
         clock.set_time(2);
-        assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 2 }).unwrap(), Timestamp { epoch: 0, time: 10, count: 3 })
+        assert_eq!(
+            observing(
+                &mut clock,
+                &Timestamp {
+                    epoch: 0,
+                    time: 10,
+                    count: 2
+                }
+            )
+            .unwrap(),
+            Timestamp {
+                epoch: 0,
+                time: 10,
+                count: 3
+            }
+        )
     }
 
     #[test]
     fn fig_6_proc_2_c() {
         let mut clock = Clock::manual(0);
         clock.set_time(2);
-        let _ = observing(&mut clock, &Timestamp { epoch: 0, time: 10, count: 2 }).unwrap();
+        let _ = observing(
+            &mut clock,
+            &Timestamp {
+                epoch: 0,
+                time: 10,
+                count: 2,
+            },
+        )
+        .unwrap();
         clock.set_time(3);
-        assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 4 })
+        assert_eq!(
+            clock.now(),
+            Timestamp {
+                epoch: 0,
+                time: 10,
+                count: 4
+            }
+        )
     }
 
     #[test]
     fn all_sources_same() {
         let mut clock = Clock::manual(0);
-        let observed = Timestamp { epoch: 0, time: 0, count: 5 };
-        let result  = observing(&mut clock, &observed).unwrap();
+        let observed = Timestamp {
+            epoch: 0,
+            time: 0,
+            count: 5,
+        };
+        let result = observing(&mut clock, &observed).unwrap();
         println!("obs:{:?}; result:{:?}", observed, result);
         assert!(result > observed);
         assert!(result.time == observed.time)
@@ -357,7 +468,14 @@ mod tests {
         let mut clock = Clock::manual(10);
         let _ = clock.now();
         clock.set_time(9);
-        assert_eq!(clock.now(), Timestamp { epoch: 0, time: 10, count: 2 })
+        assert_eq!(
+            clock.now(),
+            Timestamp {
+                epoch: 0,
+                time: 10,
+                count: 2
+            }
+        )
     }
 
     #[test]
@@ -365,7 +483,15 @@ mod tests {
         let mut clock = Clock::manual(10);
         let original = clock.now();
         clock.set_time(9);
-        let result = observing(&mut clock, &Timestamp { epoch: 0, time: 0, count: 0 }).unwrap();
+        let result = observing(
+            &mut clock,
+            &Timestamp {
+                epoch: 0,
+                time: 0,
+                count: 0,
+            },
+        )
+        .unwrap();
         assert!(result > original);
         assert!(result.time == 10);
     }
@@ -378,7 +504,14 @@ mod tests {
         clock.set_time(12);
         let t2 = clock.now();
         println!("=> 12: {}", t2);
-        assert_eq!(t2, Timestamp { epoch: 0, time: 12, count: 0 })
+        assert_eq!(
+            t2,
+            Timestamp {
+                epoch: 0,
+                time: 12,
+                count: 0
+            }
+        )
     }
 
     #[test]
@@ -386,7 +519,22 @@ mod tests {
         let mut clock = Clock::manual(10);
         let _ = clock.now();
         clock.set_time(12);
-        assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 0, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 12, count: 0 })
+        assert_eq!(
+            observing(
+                &mut clock,
+                &Timestamp {
+                    epoch: 0,
+                    time: 0,
+                    count: 0
+                }
+            )
+            .unwrap(),
+            Timestamp {
+                epoch: 0,
+                time: 12,
+                count: 0
+            }
+        )
     }
 
     #[test]
@@ -398,7 +546,7 @@ mod tests {
 
         let a = clock0.now();
         let b = clock1.now();
-        println!("a: {} < b: {}", a,b);
+        println!("a: {} < b: {}", a, b);
         assert!(a < b);
     }
 
@@ -414,7 +562,14 @@ mod tests {
 
         let a = clock0.now();
 
-        assert_eq!(a, Timestamp { epoch: 1, time: 1, count: 0 });
+        assert_eq!(
+            a,
+            Timestamp {
+                epoch: 1,
+                time: 1,
+                count: 0
+            }
+        );
     }
 
     #[test]
@@ -434,15 +589,28 @@ mod tests {
 
         let b = observing(&mut clock0, &a).unwrap();
         println!("a: {}; b: {}", a, b);
-        assert_eq!(a, Timestamp { epoch: 1, time: 1, count: 0 });
-        assert_eq!(b, Timestamp { epoch: 1, time: 1, count: 1 });
+        assert_eq!(
+            a,
+            Timestamp {
+                epoch: 1,
+                time: 1,
+                count: 0
+            }
+        );
+        assert_eq!(
+            b,
+            Timestamp {
+                epoch: 1,
+                time: 1,
+                count: 1
+            }
+        );
     }
 
     #[test]
     fn should_remember_epochs() {
         let mut clock0 = Clock::manual(10);
         clock0.set_epoch(0);
-
 
         let mut clock1 = Clock::manual(0);
         clock1.set_epoch(1);
@@ -454,48 +622,86 @@ mod tests {
         let _ = observing(&mut clock0, &a).unwrap();
         let b = clock0.now();
         println!("a: {}; b:{}", a, b);
-        assert_eq!(b, Timestamp { epoch: 1, time: 1, count: 2 });
+        assert_eq!(
+            b,
+            Timestamp {
+                epoch: 1,
+                time: 1,
+                count: 2
+            }
+        );
     }
 
     #[test]
     fn should_use_time_from_larger_observed_epoch() {
         let mut clock0 = Clock::manual(10);
 
-        let advanced_epoch = Timestamp {epoch: 100, time: 1, count: 0};
+        let advanced_epoch = Timestamp {
+            epoch: 100,
+            time: 1,
+            count: 0,
+        };
         let t = observing(&mut clock0, &advanced_epoch).unwrap();
-        assert_eq!(t, Timestamp {epoch: 100, time: 1, count: 1});
+        assert_eq!(
+            t,
+            Timestamp {
+                epoch: 100,
+                time: 1,
+                count: 1
+            }
+        );
     }
 
     #[test]
     fn supposedly_be_larger_than_observed_time() {
         property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| {
-                let mut clock0 = Clock::manual(t0);
-                let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
-                println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
-                assert!(t2 > advanced_epoch,
-                        "{:?} > {:?}", t2, advanced_epoch)
-            });
+            let mut clock0 = Clock::manual(t0);
+            let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
+            println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
+            assert!(t2 > advanced_epoch, "{:?} > {:?}", t2, advanced_epoch)
+        });
     }
 
     #[test]
     fn supposedly_be_larger_than_observed_clock() {
         property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| {
-                let mut clock0 = Clock::manual(t0);
-                let t1 = clock0.now();
-                let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
-                println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
-                assert!(t2 > t1,
-                        "{:?} > {:?}", t2, t1)
-            });
+            let mut clock0 = Clock::manual(t0);
+            let t1 = clock0.now();
+            let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
+            println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
+            assert!(t2 > t1, "{:?} > {:?}", t2, t1)
+        });
     }
-
 
     #[test]
     fn should_ignore_clocks_too_far_forward() {
         let src = ManualClock::new(0);
         let mut clock = Clock::new_with_max_diff(src, 10);
-        assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_err());
-        assert_eq!(observing(&mut clock, &Timestamp { epoch: 0, time: 1, count: 0 }).unwrap(), Timestamp { epoch: 0, time: 1, count: 1 })
+        assert!(observing(
+            &mut clock,
+            &Timestamp {
+                epoch: 0,
+                time: 11,
+                count: 0
+            }
+        )
+        .is_err());
+        assert_eq!(
+            observing(
+                &mut clock,
+                &Timestamp {
+                    epoch: 0,
+                    time: 1,
+                    count: 0
+                }
+            )
+            .unwrap(),
+            Timestamp {
+                epoch: 0,
+                time: 1,
+                count: 1
+            }
+        )
     }
 
     #[test]
@@ -503,7 +709,15 @@ mod tests {
         let src = ManualClock::new(0);
         let mut clock = Clock::new_with_max_diff(src, 10);
         clock.set_time(1);
-        assert!(observing(&mut clock, &Timestamp { epoch: 0, time: 11, count: 0 }).is_ok());
+        assert!(observing(
+            &mut clock,
+            &Timestamp {
+                epoch: 0,
+                time: 11,
+                count: 0
+            }
+        )
+        .is_ok());
     }
 
     #[test]
@@ -519,9 +733,7 @@ mod tests {
 
     #[test]
     fn byte_repr_should_order_as_timestamps() {
-        property((timestamps(wallclocks()),
-                    timestamps(wallclocks()))
-                ).check(|(ta, tb)| {
+        property((timestamps(wallclocks()), timestamps(wallclocks()))).check(|(ta, tb)| {
             use std::cmp::Ord;
 
             let mut ba = Vec::new();
@@ -540,9 +752,9 @@ mod tests {
 
     #[cfg(feature = "serde")]
     mod serde {
+        use super::*;
         use serde_json;
         use suppositions::*;
-        use super::*;
         #[test]
         fn should_round_trip_via_serde() {
             property(timestamps(u64s())).check(|ts| {

@@ -7,7 +7,6 @@ name = "hybrid-clocks"
 version = "0.3.4"
 
 [dependencies]
-byteorder = "0.5.1"
 quick-error = "1.0.0"
 suppositions = "0.1.4"
 time = "0.1.35"
