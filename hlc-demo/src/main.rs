@@ -46,6 +46,7 @@ impl Stream for Listener {
 
     fn poll(&mut self) -> Poll<Option<Timestamp<WallT>>, Error> {
         let mut buf = [0; 1024];
+        trace!("Poll socket: {}", self.socket.local_addr()?);
         let (recvd, peer) = try_ready!(self.socket.poll_recv_from(&mut buf));
         debug!("Received {:?} bytes from {}", recvd, peer);
         let d: Timestamp<WallT> = serde_json::from_slice(&buf[0..recvd])?;
@@ -60,31 +61,39 @@ impl Sink for Client {
 
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         if self.to_send.is_some() {
-            return Ok(AsyncSink::NotReady(item));
+            match self.poll_complete()? {
+                Async::Ready(()) => {}
+                Async::NotReady => return Ok(AsyncSink::NotReady(item)),
+            }
         }
 
         let idx = rand::thread_rng().gen_range(0, self.peers.len());
         let peer = self.peers[idx].clone();
-        debug!("Queueing to:{}; msg:{}", peer, item);
+        debug!("start_send: Queueing to:{}; msg:{}", peer, item);
         self.to_send = Some((item, peer));
+
         Ok(AsyncSink::Ready)
     }
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
         if let Some((msg, peer)) = self.to_send.as_ref() {
+            trace!("poll_complete: Sending {} to {}", msg, peer);
             let bs = serde_json::to_vec(&msg)?;
             let slen = try_ready!(self.socket.poll_send_to(&bs, &peer));
             info!("Sent {} ({} bytes) to {}", msg, slen, peer);
             self.to_send = None;
             Ok(Async::Ready(()))
         } else {
-            Ok(Async::NotReady)
+            trace!("poll_complete: Nothing to do");
+            Ok(Async::Ready(()))
         }
     }
 }
 
 fn main() -> Result<(), Error> {
-    env_logger::init();
+    env_logger::Builder::from_default_env()
+        .default_format_timestamp_nanos(true)
+        .init();
 
     let opt = Opt::from_args();
     debug!("{:?}", opt);
