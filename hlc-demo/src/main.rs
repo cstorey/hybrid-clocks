@@ -141,7 +141,13 @@ fn main() -> Result<(), Error> {
         listener
             .select(notifications)
             .forward(client.buffer(8))
-            .map(|(_src, _sink)| ())
+            .and_then(|(_src, mut sink)| {
+                debug!("Closing client");
+                futures::future::poll_fn(move || {
+                    trace!("Try close client");
+                    sink.close()
+                })
+            })
             .map_err(|e| println!("Listener error = {:?}", e)),
     );
     Ok(())
