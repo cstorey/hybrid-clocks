@@ -11,6 +11,7 @@ extern crate rand;
 extern crate serde_json;
 
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use failure::Error;
@@ -100,14 +101,31 @@ fn main() -> Result<(), Error> {
 
     let socket = UdpSocket::bind(&opt.listen_addr)?;
     info!("Listening on: {}", socket.local_addr()?);
+    let clock = Arc::new(Mutex::new(Clock::wall()));
 
-    let listener = Listener { socket };
+    let listener = {
+        let listener = Listener { socket };
+        let clock = clock.clone();
+        listener.map(move |observation| {
+            let now = clock.lock().expect("lock clock").now();
+            let cdelta = now.time - observation.time;
+            let counter = observation.count;
+            trace!("Recieved clock ({} ⃗{})", observation, now,);
+            info!("Recieved clock delta:{}; counter:{}", cdelta, counter);
+            clock
+                .lock()
+                .expect("lock clock")
+                .observe(&observation)
+                .expect("observe");
+            clock.lock().expect("lock clock").now()
+        })
+    };
 
     let socket = UdpSocket::bind(&"0.0.0.0:0".parse().expect("parse 0"))?;
     let notifications = {
-        let mut clock = Clock::wall();
         tokio::timer::Interval::new(Instant::now(), Duration::from_secs(1))
-            .map(move |_| clock.now())
+            .inspect(|_| info!("Interval tick"))
+            .map(move |_| clock.lock().expect("lock clock").now())
             .map_err(Into::into)
     };
 
