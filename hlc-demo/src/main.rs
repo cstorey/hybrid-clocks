@@ -140,7 +140,7 @@ fn main() -> Result<(), Error> {
     tokio::run(
         listener
             .select(notifications)
-            .forward(client)
+            .forward(client.buffer(8))
             .map(|(_src, _sink)| ())
             .map_err(|e| println!("Listener error = {:?}", e)),
     );
