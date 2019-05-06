@@ -1,5 +1,5 @@
 # Hybrid Logical Clocks
-[![Build Status](https://travis-ci.org/cstorey/hybrid-clocks.svg?branch=master)](https://travis-ci.org/cstorey/hybrid-clocks)
+[![CircleCI](https://circleci.com/gh/cstorey/hybrid-clocks.svg?style=svg)](https://circleci.com/gh/cstorey/hybrid-clocks)
 
 [Documentation](http://cstorey.github.io/hybrid-clocks/hybrid_clocks/index.html)
 
