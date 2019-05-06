@@ -108,9 +108,20 @@ fn main() -> Result<(), Error> {
         let clock = clock.clone();
         listener.map(move |observation| {
             let now = clock.lock().expect("lock clock").now();
-            let cdelta = now.time - observation.time;
+            let cdelta = observation.time - now.time;
+            let glt = observation.time.cmp(&now.time);
             let counter = observation.count;
-            trace!("Recieved clock ({} ⃗{})", observation, now,);
+            use std::cmp::Ordering;
+            debug!(
+                "Recieved clock (msg:{} {} local:{})",
+                observation,
+                match glt {
+                    Ordering::Greater => '>',
+                    Ordering::Equal => '=',
+                    Ordering::Less => '<',
+                },
+                now,
+            );
             info!("Recieved clock delta:{}; counter:{}", cdelta, counter);
             clock
                 .lock()
