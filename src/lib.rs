@@ -259,8 +259,7 @@ impl WallT {
 impl Sub for WallT {
     type Output = Duration;
     fn sub(self, rhs: Self) -> Self::Output {
-        let nanos = self.0 - rhs.0;
-        Duration::nanoseconds(nanos as i64)
+        self.as_timespec() - rhs.as_timespec()
     }
 }
 
