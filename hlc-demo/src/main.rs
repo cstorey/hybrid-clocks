@@ -8,8 +8,8 @@ extern crate log;
 extern crate bytes;
 extern crate env_logger;
 extern crate rand;
+extern crate rmp_serde;
 extern crate serde;
-extern crate serde_json;
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -117,7 +117,7 @@ impl<T: serde::de::DeserializeOwned> tokio::codec::Decoder for JsonCodec<T> {
     type Item = T;
     type Error = Error;
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let val = serde_json::from_slice(&*src)?;
+        let val = rmp_serde::from_slice(&*src)?;
         Ok(Some(val))
     }
 }
@@ -126,7 +126,8 @@ impl<T: serde::Serialize> tokio::codec::Encoder for JsonCodec<T> {
     type Item = T;
     type Error = Error;
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        serde_json::to_writer(BufWr(dst), &item)?;
+        let mut ser = rmp_serde::Serializer::new_named(BufWr(dst));
+        item.serialize(&mut ser)?;
         Ok(())
     }
 }
