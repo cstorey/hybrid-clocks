@@ -98,20 +98,18 @@ fn main() -> Result<(), Error> {
         }
     };
 
-    tokio::run(
-        listener
-            .select(notifications)
-            .map(pick_random_peer)
-            .forward(client)
-            .and_then(|(_src, mut sink)| {
-                debug!("Closing client");
-                futures::future::poll_fn(move || {
-                    trace!("Try close client");
-                    sink.close()
-                })
+    let root_task = listener
+        .select(notifications)
+        .map(pick_random_peer)
+        .forward(client)
+        .and_then(|(_src, mut sink)| {
+            debug!("Closing client");
+            futures::future::poll_fn(move || {
+                trace!("Try close client");
+                sink.close()
             })
-            .map_err(|e| println!("Listener error = {:?}", e)),
-    );
+        });
+    tokio::run(root_task.map_err(|e| println!("Listener error = {:?}", e)));
     Ok(())
 }
 
