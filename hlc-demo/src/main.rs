@@ -6,21 +6,24 @@ extern crate structopt;
 extern crate tokio;
 #[macro_use]
 extern crate log;
+extern crate bytes;
 extern crate env_logger;
 extern crate rand;
+extern crate serde;
 extern crate serde_json;
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use bytes::BytesMut;
 use failure::Error;
 use futures::prelude::*;
 use futures::{Future, Sink, Stream};
 use hybrid_clocks::{Clock, Timestamp, WallT};
 use rand::Rng;
 use structopt::StructOpt;
-use tokio::net::UdpSocket;
+use tokio::net::{UdpFramed, UdpSocket};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "hlc-demo", about = "Hybrid Logical clocks demo")]
@@ -31,30 +34,13 @@ struct Opt {
     peers: Vec<SocketAddr>,
 }
 
-struct Listener {
-    socket: UdpSocket,
-}
-
 struct Client {
     to_send: Option<(Timestamp<WallT>, SocketAddr)>,
     socket: UdpSocket,
     peers: Vec<SocketAddr>,
 }
 
-impl Stream for Listener {
-    type Item = Timestamp<WallT>;
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Option<Timestamp<WallT>>, Error> {
-        let mut buf = [0; 1024];
-        trace!("Poll socket: {}", self.socket.local_addr()?);
-        let (recvd, peer) = try_ready!(self.socket.poll_recv_from(&mut buf));
-        debug!("Received {:?} bytes from {}", recvd, peer);
-        let d: Timestamp<WallT> = serde_json::from_slice(&buf[0..recvd])?;
-        info!("Update from {}: {}", peer, d);
-        Ok(Async::Ready(Some(d)))
-    }
-}
+struct JsonCodec<T>(std::marker::PhantomData<T>);
 
 impl Sink for Client {
     type SinkItem = Timestamp<WallT>;
@@ -101,12 +87,16 @@ fn main() -> Result<(), Error> {
 
     let socket = UdpSocket::bind(&opt.listen_addr)?;
     info!("Listening on: {}", socket.local_addr()?);
+    let listener = UdpFramed::new(
+        socket,
+        JsonCodec::<Timestamp<WallT>>(std::marker::PhantomData),
+    );
     let clock = Arc::new(Mutex::new(Clock::wall()));
 
     let listener = {
-        let listener = Listener { socket };
         let clock = clock.clone();
-        listener.map(move |observation| {
+        listener.map(move |(observation, peer)| {
+            info!("Update from {}: {}", peer, observation);
             let now = clock.lock().expect("lock clock").now();
             let cdelta = observation.time - now.time;
             let glt = observation.time.cmp(&now.time);
@@ -162,4 +152,13 @@ fn main() -> Result<(), Error> {
             .map_err(|e| println!("Listener error = {:?}", e)),
     );
     Ok(())
+}
+
+impl<T: serde::de::DeserializeOwned> tokio::codec::Decoder for JsonCodec<T> {
+    type Item = T;
+    type Error = Error;
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        let val = serde_json::from_slice(&*src)?;
+        Ok(Some(val))
+    }
 }
