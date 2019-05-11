@@ -15,7 +15,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use failure::Error;
 use futures::prelude::*;
 use hybrid_clocks::{Clock, Timestamp, WallT};
@@ -126,7 +126,18 @@ impl<T: serde::Serialize> tokio::codec::Encoder for JsonCodec<T> {
     type Item = T;
     type Error = Error;
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        dst.put(serde_json::to_vec(&item)?);
+        serde_json::to_writer(BufWr(dst), &item)?;
         Ok(())
+    }
+}
+
+struct BufWr<'a>(&'a mut BytesMut);
+impl<'a> std::io::Write for BufWr<'a> {
+    fn flush(&mut self) -> Result<(), std::io::Error> {
+        Ok(())
+    }
+    fn write(&mut self, data: &[u8]) -> Result<usize, std::io::Error> {
+        self.0.extend_from_slice(data);
+        Ok(data.len())
     }
 }
