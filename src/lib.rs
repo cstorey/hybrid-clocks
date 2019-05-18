@@ -72,7 +72,7 @@ pub struct Timestamp<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Wall;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-/// Nanoseconds since unix epoch
+#[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
 pub struct WallT(u64);
 
 /// The main clock type.
