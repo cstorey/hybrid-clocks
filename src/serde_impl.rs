@@ -1,20 +1,19 @@
-use super::{Timestamp, Wall2T, WallT};
+use super::{Wall2T, WallT};
 use serde::ser::SerializeTupleStruct;
 use serde::{de, ser};
 use std::fmt;
 
-impl<T: ser::Serialize> ser::Serialize for Timestamp<T> {
+#[derive(Serialize, Deserialize)]
+struct Timestamp<T>(u32, T, u32);
+
+impl<T: ser::Serialize + Copy> ser::Serialize for crate::Timestamp<T> {
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut tuple_state = try!(serializer.serialize_tuple_struct("Timestamp", 3usize));
-        try!(tuple_state.serialize_field(&self.epoch));
-        try!(tuple_state.serialize_field(&self.time));
-        try!(tuple_state.serialize_field(&self.count));
-        return tuple_state.end();
+        self::Timestamp(self.epoch, self.time, self.count).serialize(serializer)
     }
 }
 
-impl<'de, T: de::Deserialize<'de>> de::Deserialize<'de> for Timestamp<T> {
-    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Timestamp<T>, D::Error>
+impl<'de, T: de::Deserialize<'de>> de::Deserialize<'de> for crate::Timestamp<T> {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<crate::Timestamp<T>, D::Error>
     where
         D: de::Deserializer<'de>,
     {
@@ -23,10 +22,13 @@ impl<'de, T: de::Deserialize<'de>> de::Deserialize<'de> for Timestamp<T> {
         where
             T: de::Deserialize<'de>,
         {
-            type Value = Timestamp<T>;
+            type Value = crate::Timestamp<T>;
 
             #[inline]
-            fn visit_seq<V>(self, mut visitor: V) -> ::std::result::Result<Timestamp<T>, V::Error>
+            fn visit_seq<V>(
+                self,
+                mut visitor: V,
+            ) -> ::std::result::Result<crate::Timestamp<T>, V::Error>
             where
                 V: de::SeqAccess<'de>,
                 T: de::Deserialize<'de>,
@@ -60,7 +62,7 @@ impl<'de, T: de::Deserialize<'de>> de::Deserialize<'de> for Timestamp<T> {
                         }
                     };
 
-                    Ok(Timestamp {
+                    Ok(crate::Timestamp {
                         epoch: field0,
                         time: field1,
                         count: field2,
