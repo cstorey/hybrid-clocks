@@ -33,7 +33,7 @@ struct Opt {
 }
 
 #[derive(Copy, Clone, Debug)]
-struct MsgpackCodec<T>(std::marker::PhantomData<T>);
+struct JsonCodec<T>(std::marker::PhantomData<T>);
 
 fn main() -> Result<(), Error> {
     env_logger::Builder::from_default_env()
@@ -47,7 +47,7 @@ fn main() -> Result<(), Error> {
     info!("Listening on: {}", socket.local_addr()?);
     let (client, listener) = UdpFramed::new(
         socket,
-        MsgpackCodec::<Timestamp<Wall2T>>(std::marker::PhantomData),
+        JsonCodec::<Timestamp<Wall2T>>(std::marker::PhantomData),
     )
     .split();
     let clock = Arc::new(Mutex::new(Clock::wall2()));
@@ -113,7 +113,7 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-impl<T: serde::de::DeserializeOwned> tokio::codec::Decoder for MsgpackCodec<T> {
+impl<T: serde::de::DeserializeOwned> tokio::codec::Decoder for JsonCodec<T> {
     type Item = T;
     type Error = Error;
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -122,7 +122,7 @@ impl<T: serde::de::DeserializeOwned> tokio::codec::Decoder for MsgpackCodec<T> {
     }
 }
 
-impl<T: serde::Serialize> tokio::codec::Encoder for MsgpackCodec<T> {
+impl<T: serde::Serialize> tokio::codec::Encoder for JsonCodec<T> {
     type Item = T;
     type Error = Error;
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
