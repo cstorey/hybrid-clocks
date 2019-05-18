@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use bytes::BytesMut;
 use failure::Error;
 use futures::prelude::*;
-use hybrid_clocks::{Clock, Timestamp, WallT};
+use hybrid_clocks::{Clock, Timestamp, Wall2T};
 use rand::Rng;
 use structopt::StructOpt;
 use tokio::net::{UdpFramed, UdpSocket};
@@ -47,10 +47,10 @@ fn main() -> Result<(), Error> {
     info!("Listening on: {}", socket.local_addr()?);
     let (client, listener) = UdpFramed::new(
         socket,
-        MsgpackCodec::<Timestamp<WallT>>(std::marker::PhantomData),
+        MsgpackCodec::<Timestamp<Wall2T>>(std::marker::PhantomData),
     )
     .split();
-    let clock = Arc::new(Mutex::new(Clock::wall()));
+    let clock = Arc::new(Mutex::new(Clock::wall2()));
 
     let listener = {
         let clock = clock.clone();
