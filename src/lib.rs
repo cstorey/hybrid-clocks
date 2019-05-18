@@ -19,7 +19,6 @@ extern crate serde_json;
 #[cfg(test)]
 extern crate suppositions;
 
-use std::cell::Cell;
 use std::cmp::Ordering;
 use std::convert::TryInto;
 use std::fmt;
@@ -98,16 +97,6 @@ impl Clock<Wall2> {
     /// Returns a `Clock` that uses wall-clock time.
     pub fn wall2() -> Clock<Wall2> {
         Clock::new(Wall2)
-    }
-}
-
-impl Clock<ManualClock> {
-    /// Returns a `Clock` that uses wall-clock time.
-    pub fn manual(t: u64) -> Clock<ManualClock> {
-        Clock::new(ManualClock::new(t))
-    }
-    pub fn set_time(&mut self, t: u64) {
-        self.src.set_time(t)
     }
 }
 
@@ -376,34 +365,45 @@ impl<T: fmt::Display> fmt::Display for Timestamp<T> {
     }
 }
 
-pub struct ManualClock(Cell<u64>);
-
-impl<'a> ClockSource for ManualClock {
-    type Time = u64;
-    type Delta = u64;
-    fn now(&mut self) -> Self::Time {
-        self.0.get()
-    }
-}
-
-impl ManualClock {
-    pub fn new(t: u64) -> ManualClock {
-        ManualClock(Cell::new(t))
-    }
-    pub fn set_time(&self, t: u64) {
-        self.0.set(t)
-    }
-}
-
 #[cfg(feature = "serde")]
 mod serde_impl;
 
 #[cfg(test)]
 mod tests {
-    use super::{Clock, ManualClock, Timestamp, Wall2T, WallT};
+    use super::{Clock, ClockSource, Timestamp, Wall2T, WallT};
+    use std::cell::Cell;
     use std::io::Cursor;
     use suppositions::generators::*;
     use suppositions::*;
+
+    pub struct ManualClock(Cell<u64>);
+
+    impl<'a> ClockSource for ManualClock {
+        type Time = u64;
+        type Delta = u64;
+        fn now(&mut self) -> Self::Time {
+            self.0.get()
+        }
+    }
+
+    impl Clock<ManualClock> {
+        /// Returns a `Clock` that uses wall-clock time.
+        pub fn manual(t: u64) -> Clock<ManualClock> {
+            Clock::new(ManualClock::new(t))
+        }
+        pub fn set_time(&mut self, t: u64) {
+            self.src.set_time(t)
+        }
+    }
+
+    impl ManualClock {
+        pub fn new(t: u64) -> ManualClock {
+            ManualClock(Cell::new(t))
+        }
+        pub fn set_time(&self, t: u64) {
+            self.0.set(t)
+        }
+    }
 
     fn observing<'a>(
         clock: &mut Clock<ManualClock>,
