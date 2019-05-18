@@ -719,34 +719,38 @@ mod tests {
         .is_ok());
     }
 
-    #[test]
-    fn should_round_trip_via_key() {
-        property(timestamps(wallclocks())).check(|ts| {
-            let mut bs = Vec::new();
-            ts.write_bytes(&mut bs).expect("write_bytes");
-            let ts2 = Timestamp::read_bytes(Cursor::new(&bs)).expect("read_bytes");
-            // println!("{:?}\t{:?}", ts == ts2, bs);
-            ts == ts2
-        });
-    }
+    mod wall {
+        use super::*;
 
-    #[test]
-    fn byte_repr_should_order_as_timestamps() {
-        property((timestamps(wallclocks()), timestamps(wallclocks()))).check(|(ta, tb)| {
-            use std::cmp::Ord;
+        #[test]
+        fn should_round_trip_via_key() {
+            property(timestamps(wallclocks())).check(|ts| {
+                let mut bs = Vec::new();
+                ts.write_bytes(&mut bs).expect("write_bytes");
+                let ts2 = Timestamp::read_bytes(Cursor::new(&bs)).expect("read_bytes");
+                // println!("{:?}\t{:?}", ts == ts2, bs);
+                ts == ts2
+            });
+        }
 
-            let mut ba = Vec::new();
-            let mut bb = Vec::new();
-            ta.write_bytes(&mut ba).expect("write_bytes");
-            tb.write_bytes(&mut bb).expect("write_bytes");
-            /*
-            println!("{:?}\t{:?} <> {:?}: {:?}\t{:?} <> {:?}: {:?}",
-                    ta.cmp(&tb) == ba.cmp(&bb),
-                    ta, tb, ta.cmp(&tb),
-                    ba, bb, ba.cmp(&bb));
-            */
-            ta.cmp(&tb) == ba.cmp(&bb)
-        })
+        #[test]
+        fn byte_repr_should_order_as_timestamps() {
+            property((timestamps(wallclocks()), timestamps(wallclocks()))).check(|(ta, tb)| {
+                use std::cmp::Ord;
+
+                let mut ba = Vec::new();
+                let mut bb = Vec::new();
+                ta.write_bytes(&mut ba).expect("write_bytes");
+                tb.write_bytes(&mut bb).expect("write_bytes");
+                /*
+                println!("{:?}\t{:?} <> {:?}: {:?}\t{:?} <> {:?}: {:?}",
+                        ta.cmp(&tb) == ba.cmp(&bb),
+                        ta, tb, ta.cmp(&tb),
+                        ba, bb, ba.cmp(&bb));
+                */
+                ta.cmp(&tb) == ba.cmp(&bb)
+            })
+        }
     }
 
     #[cfg(feature = "serde")]
