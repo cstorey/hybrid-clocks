@@ -413,11 +413,11 @@ mod tests {
         Ok(clock.now())
     }
 
-    fn wallclocks() -> Box<GeneratorObject<Item = WallT>> {
-        u64s().map(WallT).boxed()
+    fn wallclocks() -> impl Generator<Item = WallT> {
+        u64s().map(WallT)
     }
-    fn wallclocks2() -> Box<GeneratorObject<Item = Wall2T>> {
-        u64s().map(Wall2T).boxed()
+    fn wallclocks2() -> impl Generator<Item = Wall2T> {
+        u64s().map(Wall2T)
     }
 
     fn timestamps<C: Generator + 'static>(
