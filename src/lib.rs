@@ -163,14 +163,16 @@ where
             lp.count.cmp(&observation.count),
         ) {
             (Ordering::Less, _, _) | (Ordering::Equal, Ordering::Less, _) => observation.clone(),
-            (Ordering::Equal, Ordering::Equal, Ordering::Less) => Timestamp {
-                count: observation.count + 1,
-                ..lp
-            },
-            _ => Timestamp {
-                count: lp.count + 1,
-                ..lp
-            },
+            (Ordering::Equal, Ordering::Equal, Ordering::Less) => {
+                let (count, overflowed) = observation.count.overflowing_add(1);
+                let time = if overflowed { lp.time.tick() } else { lp.time };
+                Timestamp { count, time, ..lp }
+            }
+            _ => {
+                let (count, overflowed) = lp.count.overflowing_add(1);
+                let time = if overflowed { lp.time.tick() } else { lp.time };
+                Timestamp { count, time, ..lp }
+            }
         };
     }
 
@@ -855,11 +857,30 @@ mod tests {
 
     #[test]
     fn handles_counter_overflow_supposedly() {
-        property((u64s(), u64s())).check(|(t0, t1)| {
+        property(u64s()).check(|t0| {
             let mut clock = Clock::manual(t0);
             let observed = Timestamp {
                 epoch: 0,
-                time: t1,
+                time: t0,
+                count: u32::max_value(),
+            };
+            let result = observing(&mut clock, &observed).unwrap();
+            assert!(
+                result > observed,
+                "result:{} > observed:{}",
+                result,
+                observed
+            );
+        });
+    }
+
+    #[test]
+    fn handles_counter_overflow_clock_difference_supposedly() {
+        property((u8s(), u8s())).check(|(t0, t1)| {
+            let mut clock = Clock::manual(t0 as u64);
+            let observed = Timestamp {
+                epoch: 0,
+                time: t1 as u64,
                 count: u32::max_value(),
             };
             let result = observing(&mut clock, &observed).unwrap();
