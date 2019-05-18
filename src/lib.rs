@@ -734,6 +734,15 @@ mod tests {
         }
 
         #[test]
+        fn should_round_trip_via_timespec() {
+            property(wallclocks()).check(|wc| {
+                let tsp = wc.as_timespec();
+                let wc2 = WallT::from_timespec(tsp);
+                wc == wc2
+            });
+        }
+
+        #[test]
         fn byte_repr_should_order_as_timestamps() {
             property((timestamps(wallclocks()), timestamps(wallclocks()))).check(|(ta, tb)| {
                 use std::cmp::Ord;
