@@ -80,8 +80,10 @@ pub struct Wall;
 pub struct Wall2;
 /// Nanoseconds since unix epoch
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
 pub struct WallT(u64);
 /// 2^(-16)s since unix epoch
+#[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Wall2T(u64);
 
