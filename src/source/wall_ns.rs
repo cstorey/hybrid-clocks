@@ -5,6 +5,7 @@ use std::ops::Sub;
 use time::Duration;
 
 use super::ClockSource;
+use super::NANOS_PER_SEC;
 use crate::Timestamp;
 
 /// A clock source that returns wall-clock in nanoseconds.
@@ -13,8 +14,6 @@ pub struct Wall;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
 pub struct WallT(u64);
-
-const NANOS_PER_SEC: u64 = 1000_000_000;
 
 impl WallT {
     /// Returns a `time::Timespec` representing this timestamp.

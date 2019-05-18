@@ -71,6 +71,13 @@ impl Clock<Wall> {
     }
 }
 
+impl Clock<Wall2> {
+    /// Returns a `Clock` that uses wall-clock time.
+    pub fn wall2() -> Clock<Wall2> {
+        Clock::new(Wall2)
+    }
+}
+
 impl Clock<ManualClock> {
     /// Returns a `Clock` that uses wall-clock time.
     pub fn manual(t: u64) -> Clock<ManualClock> {
@@ -193,7 +200,7 @@ impl<T: fmt::Display> fmt::Display for Timestamp<T> {
 mod serde_impl;
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use super::{Clock, ManualClock, Timestamp};
     use suppositions::generators::*;
     use suppositions::*;
