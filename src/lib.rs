@@ -35,6 +35,11 @@ quick_error! {
     }
 }
 
+/// A trait that allows us to roll forward to the next time tick.
+pub trait Time {
+    fn tick(self) -> Self;
+}
+
 /// Describes the interface that the inner clock source must provide.
 pub trait ClockSource {
     /// Represents the described clock time.
@@ -100,7 +105,10 @@ impl Clock<Wall2> {
     }
 }
 
-impl<S: ClockSource> Clock<S> {
+impl<S: ClockSource> Clock<S>
+where
+    S::Time: Time,
+{
     /// Creates a clock with `src` as the time provider.
     pub fn new(mut src: S) -> Self {
         let init = src.now();
@@ -286,6 +294,12 @@ impl Sub for WallT {
     }
 }
 
+impl Time for WallT {
+    fn tick(self) -> Self {
+        WallT(self.0 + 1)
+    }
+}
+
 impl Wall2T {
     const TICKS_PER_SEC: u64 = 1 << 16;
     /// Returns a `time::Timespec` representing this timestamp.
@@ -318,6 +332,11 @@ impl Sub for Wall2T {
     type Output = Duration;
     fn sub(self, rhs: Self) -> Self::Output {
         self.as_timespec() - rhs.as_timespec()
+    }
+}
+impl Time for Wall2T {
+    fn tick(self) -> Self {
+        Wall2T(self.0 + 1)
     }
 }
 
@@ -370,7 +389,7 @@ mod serde_impl;
 
 #[cfg(test)]
 mod tests {
-    use super::{Clock, ClockSource, Timestamp, Wall2T, WallT};
+    use super::*;
     use std::cell::Cell;
     use std::io::Cursor;
     use suppositions::generators::*;
@@ -402,6 +421,12 @@ mod tests {
         }
         pub fn set_time(&self, t: u64) {
             self.0.set(t)
+        }
+    }
+
+    impl Time for u64 {
+        fn tick(self) -> Self {
+            self + 1
         }
     }
 
@@ -808,6 +833,43 @@ mod tests {
             }
         )
         .is_ok());
+    }
+
+    #[test]
+    fn handles_counter_overflow() {
+        let mut clock = Clock::manual(0);
+        let observed = Timestamp {
+            epoch: 0,
+            time: 0,
+            count: u32::max_value(),
+        };
+        let result = observing(&mut clock, &observed).unwrap();
+        println!("obs:{:?}; result:{:?}", observed, result);
+        assert!(
+            result > observed,
+            "result:{} > observed:{}",
+            result,
+            observed
+        );
+    }
+
+    #[test]
+    fn handles_counter_overflow_supposedly() {
+        property((u64s(), u64s())).check(|(t0, t1)| {
+            let mut clock = Clock::manual(t0);
+            let observed = Timestamp {
+                epoch: 0,
+                time: t1,
+                count: u32::max_value(),
+            };
+            let result = observing(&mut clock, &observed).unwrap();
+            assert!(
+                result > observed,
+                "result:{} > observed:{}",
+                result,
+                observed
+            );
+        });
     }
 
     mod wall {
