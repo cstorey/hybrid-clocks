@@ -12,9 +12,9 @@ extern crate time;
 #[macro_use]
 extern crate quick_error;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serialization")]
 extern crate serde;
-#[cfg(all(feature = "serde", test))]
+#[cfg(all(feature = "serialization", test))]
 extern crate serde_json;
 #[cfg(test)]
 extern crate suppositions;
@@ -308,7 +308,7 @@ impl ManualClock {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serialization")]
 mod serde_impl;
 
 #[cfg(test)]
@@ -750,7 +750,7 @@ mod tests {
         })
     }
 
-    #[cfg(feature = "serde")]
+    #[cfg(feature = "serialization")]
     mod serde {
         use super::*;
         use serde_json;
