@@ -17,69 +17,8 @@ impl<'de, T: de::Deserialize<'de>> de::Deserialize<'de> for crate::Timestamp<T> 
     where
         D: de::Deserializer<'de>,
     {
-        struct TimestampVisitor<T>(::std::marker::PhantomData<T>);
-        impl<'de, T> de::Visitor<'de> for TimestampVisitor<T>
-        where
-            T: de::Deserialize<'de>,
-        {
-            type Value = crate::Timestamp<T>;
-
-            #[inline]
-            fn visit_seq<V>(
-                self,
-                mut visitor: V,
-            ) -> ::std::result::Result<crate::Timestamp<T>, V::Error>
-            where
-                V: de::SeqAccess<'de>,
-                T: de::Deserialize<'de>,
-            {
-                {
-                    let field0 = match try!(visitor.next_element()) {
-                        Some(value) => value,
-                        None => {
-                            return Err(de::Error::invalid_length(
-                                0,
-                                &"Needed 3 values for Timestamp",
-                            ));
-                        }
-                    };
-                    let field1 = match try!(visitor.next_element()) {
-                        Some(value) => value,
-                        None => {
-                            return Err(de::Error::invalid_length(
-                                1,
-                                &"Needed 3 values for Timestamp",
-                            ));
-                        }
-                    };
-                    let field2 = match try!(visitor.next_element()) {
-                        Some(value) => value,
-                        None => {
-                            return Err(de::Error::invalid_length(
-                                2,
-                                &"Needed 3 values for Timestamp",
-                            ));
-                        }
-                    };
-
-                    Ok(crate::Timestamp {
-                        epoch: field0,
-                        time: field1,
-                        count: field2,
-                    })
-                }
-            }
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a timestamp")
-            }
-        }
-
-        deserializer.deserialize_tuple_struct(
-            "Timestamp",
-            3usize,
-            TimestampVisitor::<T>(::std::marker::PhantomData),
-        )
+        let self::Timestamp(epoch, time, count) = de::Deserialize::deserialize(deserializer)?;
+        Ok(crate::Timestamp { epoch, time, count })
     }
 }
 
