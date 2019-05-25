@@ -48,7 +48,7 @@ impl WallMST {
     }
 
     /// Returns a `WallMST` representing the `time::Timespec`.
-    fn from_timespec(t: time::Timespec) -> Self {
+    pub fn from_timespec(t: time::Timespec) -> Self {
         let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
         let major_ticks = t.sec as u64 * Self::TICKS_PER_SEC;
         let minor_ticks = t.nsec as u64 / nanos_per_tick;

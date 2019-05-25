@@ -27,7 +27,7 @@ impl WallNST {
     }
 
     /// Returns a `WallNST` representing the `time::Timespec`.
-    fn from_timespec(t: time::Timespec) -> Self {
+    pub fn from_timespec(t: time::Timespec) -> Self {
         WallNST(t.sec as u64 * NANOS_PER_SEC + t.nsec as u64)
     }
 
