@@ -8,12 +8,12 @@ use crate::Timestamp;
 
 // A clock source that returns wall-clock in 2^(-16)s
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Wall2;
+pub struct WallMS;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
-pub struct Wall2T(u64);
+pub struct WallMST(u64);
 
-impl Timestamp<Wall2T> {
+impl Timestamp<WallMST> {
     pub fn to_bytes(&self) -> [u8; 16] {
         let mut res = [0; 16];
         res[0..4].copy_from_slice(&self.epoch.to_be_bytes());
@@ -28,12 +28,12 @@ impl Timestamp<Wall2T> {
         let count = u32::from_be_bytes(bytes[12..16].try_into().unwrap());
         Timestamp {
             epoch: epoch,
-            time: Wall2T(nanos),
+            time: WallMST(nanos),
             count: count,
         }
     }
 }
-impl Wall2T {
+impl WallMST {
     const TICKS_PER_SEC: u64 = 1 << 16;
     /// Returns a `time::Timespec` representing this timestamp.
     pub fn as_timespec(self) -> time::Timespec {
@@ -47,12 +47,12 @@ impl Wall2T {
         }
     }
 
-    /// Returns a `Wall2T` representing the `time::Timespec`.
+    /// Returns a `WallMST` representing the `time::Timespec`.
     fn from_timespec(t: time::Timespec) -> Self {
         let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
         let major_ticks = t.sec as u64 * Self::TICKS_PER_SEC;
         let minor_ticks = t.nsec as u64 / nanos_per_tick;
-        Wall2T(major_ticks + minor_ticks)
+        WallMST(major_ticks + minor_ticks)
     }
 
     /// Returns time in nanoseconds since the unix epoch.
@@ -61,22 +61,22 @@ impl Wall2T {
     }
 }
 
-impl Sub for Wall2T {
+impl Sub for WallMST {
     type Output = Duration;
     fn sub(self, rhs: Self) -> Self::Output {
         self.as_timespec() - rhs.as_timespec()
     }
 }
 
-impl ClockSource for Wall2 {
-    type Time = Wall2T;
+impl ClockSource for WallMS {
+    type Time = WallMST;
     type Delta = Duration;
     fn now(&mut self) -> Self::Time {
-        Wall2T::from_timespec(time::get_time())
+        WallMST::from_timespec(time::get_time())
     }
 }
 
-impl fmt::Display for Wall2T {
+impl fmt::Display for WallMST {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let tm = time::at_utc(self.as_timespec());
         write!(
@@ -88,22 +88,22 @@ impl fmt::Display for Wall2T {
 }
 #[cfg(test)]
 mod tests {
-    use super::Wall2T;
+    use super::WallMST;
     use crate::tests::timestamps;
     use crate::Timestamp;
     use suppositions::generators::*;
 
     use suppositions::*;
 
-    fn wallclocks2() -> Box<GeneratorObject<Item = Wall2T>> {
-        u64s().map(Wall2T).boxed()
+    fn wallclocks2() -> Box<GeneratorObject<Item = WallMST>> {
+        u64s().map(WallMST).boxed()
     }
 
     #[test]
     fn should_round_trip_via_key() {
         property(timestamps(wallclocks2())).check(|ts| {
             let bs = ts.to_bytes();
-            let ts2 = Timestamp::<Wall2T>::from_bytes(bs);
+            let ts2 = Timestamp::<WallMST>::from_bytes(bs);
             // println!("{:?}\t{:?}", ts == ts2, bs);
             ts == ts2
         });
@@ -113,7 +113,7 @@ mod tests {
     fn should_round_trip_via_timespec() {
         property(wallclocks2()).check(|wc| {
             let tsp = wc.as_timespec();
-            let wc2 = Wall2T::from_timespec(tsp);
+            let wc2 = WallMST::from_timespec(tsp);
             assert_eq!(
                 wc,
                 wc2,

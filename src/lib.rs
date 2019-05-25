@@ -71,10 +71,10 @@ impl Clock<WallNS> {
     }
 }
 
-impl Clock<Wall2> {
+impl Clock<WallMS> {
     /// Returns a `Clock` that uses WallNS-clock time.
-    pub fn wall2() -> Clock<Wall2> {
-        Clock::new(Wall2)
+    pub fn wall_ms() -> Clock<WallMS> {
+        Clock::new(WallMS)
     }
 }
 
