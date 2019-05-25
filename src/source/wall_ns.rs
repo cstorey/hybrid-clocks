@@ -99,10 +99,78 @@ impl Timestamp<WallT> {
         }
     }
 }
+/// Serialization for the previous version.
+#[cfg(all(feature = "serialization", feature = "deserialize-v1"))]
+pub mod v1 {
+    use std::fmt;
+
+    use serde::ser::SerializeTupleStruct;
+    use serde::{de, ser};
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct WallT(u64);
+
+    impl From<super::WallT> for WallT {
+        fn from(v2: super::WallT) -> Self {
+            return WallT(v2.0);
+        }
+    }
+
+    impl From<WallT> for super::WallT {
+        fn from(v1: WallT) -> super::WallT {
+            return super::WallT(v1.0);
+        }
+    }
+
+    impl ser::Serialize for WallT {
+        fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let mut tuple_state = try!(serializer.serialize_tuple_struct("WallT", 1usize));
+            try!(tuple_state.serialize_field(&self.0));
+            return tuple_state.end();
+        }
+    }
+
+    impl<'de> de::Deserialize<'de> for WallT {
+        fn deserialize<D>(deserializer: D) -> ::std::result::Result<WallT, D::Error>
+        where
+            D: de::Deserializer<'de>,
+        {
+            struct WallTVisitor;
+            impl<'de> de::Visitor<'de> for WallTVisitor {
+                type Value = WallT;
+
+                #[inline]
+                fn visit_seq<V>(self, mut visitor: V) -> ::std::result::Result<WallT, V::Error>
+                where
+                    V: de::SeqAccess<'de>,
+                {
+                    {
+                        let field0 = match try!(visitor.next_element()) {
+                            Some(value) => value,
+                            None => {
+                                return Err(de::Error::invalid_length(
+                                    0,
+                                    &"Needed 1 values for wall clock",
+                                ));
+                            }
+                        };
+                        Ok(WallT(field0))
+                    }
+                }
+
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("v1 wall clock value")
+                }
+            }
+
+            deserializer.deserialize_tuple_struct("WallT", 1usize, WallTVisitor)
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use super::WallT;
+    use super::*;
     use crate::tests::timestamps;
     use crate::Timestamp;
     use std::io::Cursor;
@@ -144,4 +212,46 @@ mod tests {
         })
     }
 
+    #[cfg(feature = "serialization")]
+    mod serde {
+        use super::*;
+        use serde_json;
+        #[test]
+        fn should_round_trip_via_serde() {
+            property(timestamps(wallclocks())).check(|ts| {
+                let s = serde_json::to_string(&ts).expect("to-json");
+                let ts2 = serde_json::from_str(&s).expect("from-json");
+                ts == ts2
+            });
+        }
+
+        #[test]
+        fn should_round_trip_via_v1_serde() {
+            property(timestamps(wallclocks())).check(|ts| {
+                let tsv1 = ts.time_into::<v1::WallT>();
+                let s = serde_json::to_string(&tsv1).expect("to-json");
+                let ts2v1 = serde_json::from_str::<Timestamp<v1::WallT>>(&s).expect("from-json");
+                let ts2 = ts2v1.time_into::<WallT>();
+                ts == ts2
+            });
+        }
+
+        #[cfg(feature = "deserialize-v1")]
+        #[test]
+        fn should_deserialize_v1() {
+            let s = "[0,[1558805131923316000],0]";
+            let ts = serde_json::from_str::<Timestamp<v1::WallT>>(&s)
+                .expect("from-json")
+                .time_into();
+
+            assert_eq!(
+                ts,
+                Timestamp {
+                    epoch: 0,
+                    time: WallT(1558805131923316000),
+                    count: 0,
+                }
+            )
+        }
+    }
 }

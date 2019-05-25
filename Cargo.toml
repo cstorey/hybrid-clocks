@@ -20,6 +20,7 @@ version = "1.0"
 
 [features]
 serialization = ["serde", "serde_derive"]
+deserialize-v1 = []
 
 [dev-dependencies]
 serde_json = "1.0"

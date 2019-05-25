@@ -196,6 +196,16 @@ impl<T: fmt::Display> fmt::Display for Timestamp<T> {
     }
 }
 
+impl<T> Timestamp<T> {
+    pub fn time_into<U: From<T>>(self) -> Timestamp<U> {
+        Timestamp {
+            epoch: self.epoch,
+            time: self.time.into(),
+            count: self.count,
+        }
+    }
+}
+
 #[cfg(feature = "serialization")]
 mod serde_impl;
 
