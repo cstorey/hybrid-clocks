@@ -36,6 +36,11 @@ impl WallNST {
         self.0
     }
 
+    /// Returns time in nanoseconds since the unix epoch.
+    pub fn of_u64(val: u64) -> Self {
+        WallNST(val)
+    }
+
     fn of_nanos(nanos: u64) -> Self {
         WallNST(nanos)
     }

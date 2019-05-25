@@ -59,6 +59,11 @@ impl WallMST {
     pub fn as_u64(self) -> u64 {
         self.0
     }
+
+    /// Returns time in nanoseconds since the unix epoch.
+    pub fn of_u64(val: u64) -> Self {
+        WallMST(val)
+    }
 }
 
 impl Sub for WallMST {
