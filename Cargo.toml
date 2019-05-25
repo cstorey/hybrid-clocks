@@ -14,11 +14,16 @@ time = "0.1.35"
 [dependencies.serde]
 optional = true
 version = "1.0"
+[dependencies.serde_derive]
+optional = true
+version = "1.0"
+
+[features]
+serialization = ["serde", "serde_derive"]
+deserialize-v1 = []
 
 [dev-dependencies]
 serde_json = "1.0"
-
-[features]
 
 [profile]
 
