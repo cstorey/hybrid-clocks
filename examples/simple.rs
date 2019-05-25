@@ -3,8 +3,8 @@ extern crate time;
 use hlc::Clock;
 
 fn main() {
-    let mut clock_a = Clock::wall();
-    let mut clock_b = Clock::wall();
+    let mut clock_a = Clock::wall_ns();
+    let mut clock_b = Clock::wall_ns();
 
     let b0 = clock_b.now();
     let a0 = clock_a.now();

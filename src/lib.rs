@@ -48,10 +48,10 @@ quick_error! {
 pub struct Timestamp<T> {
     /// An epoch counter.
     pub epoch: u32,
-    /// The wall-clock time as returned by the clock source.
+    /// The Wall-clock time as returned by the clock source.
     pub time: T,
     /// A Lamport clock used to disambiguate events that are given the same
-    /// wall-clock time. This is reset whenever `time` is incremented.
+    /// Wall-clock time. This is reset whenever `time` is incremented.
     pub count: u32,
 }
 
@@ -64,22 +64,22 @@ pub struct Clock<S: ClockSource> {
     max_offset: Option<S::Delta>,
 }
 
-impl Clock<Wall> {
-    /// Returns a `Clock` that uses wall-clock time.
-    pub fn wall() -> Clock<Wall> {
-        Clock::new(Wall)
+impl Clock<WallNS> {
+    /// Returns a `Clock` that uses WallNS-clock time.
+    pub fn wall_ns() -> Clock<WallNS> {
+        Clock::new(WallNS)
     }
 }
 
 impl Clock<Wall2> {
-    /// Returns a `Clock` that uses wall-clock time.
+    /// Returns a `Clock` that uses WallNS-clock time.
     pub fn wall2() -> Clock<Wall2> {
         Clock::new(Wall2)
     }
 }
 
 impl Clock<ManualClock> {
-    /// Returns a `Clock` that uses wall-clock time.
+    /// Returns a `Clock` that uses WallNS-clock time.
     pub fn manual(t: u64) -> Clock<ManualClock> {
         Clock::new(ManualClock::new(t))
     }
