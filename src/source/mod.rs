@@ -1,7 +1,9 @@
 use std::fmt;
 use std::ops::Sub;
 
+mod manual;
 mod wall_ns;
+pub use self::manual::*;
 pub use self::wall_ns::*;
 
 /// Describes the interface that the inner clock source must provide.

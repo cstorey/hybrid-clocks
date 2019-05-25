@@ -22,7 +22,6 @@ extern crate serde_json;
 #[cfg(test)]
 extern crate suppositions;
 
-use std::cell::Cell;
 use std::cmp::Ordering;
 use std::fmt;
 
@@ -187,25 +186,6 @@ impl<S: ClockSource> Clock<S> {
 impl<T: fmt::Display> fmt::Display for Timestamp<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{}:{}+{}", self.epoch, self.time, self.count)
-    }
-}
-
-pub struct ManualClock(Cell<u64>);
-
-impl<'a> ClockSource for ManualClock {
-    type Time = u64;
-    type Delta = u64;
-    fn now(&mut self) -> Self::Time {
-        self.0.get()
-    }
-}
-
-impl ManualClock {
-    pub fn new(t: u64) -> ManualClock {
-        ManualClock(Cell::new(t))
-    }
-    pub fn set_time(&self, t: u64) {
-        self.0.set(t)
     }
 }
 
