@@ -10,7 +10,7 @@ edition = "2018"
 [dependencies]
 quick-error = "1.0.0"
 suppositions = "0.1.4"
-time = "0.1.35"
+time = "0.2.0"
 thiserror = "1.0.9"
 
 [dependencies.serde]
