@@ -150,7 +150,7 @@ pub mod v1 {
                     V: de::SeqAccess<'de>,
                 {
                     {
-                        let field0 = match visitor.next_element() {
+                        let field0 = match visitor.next_element()? {
                             Some(value) => value,
                             None => {
                                 return Err(de::Error::invalid_length(
