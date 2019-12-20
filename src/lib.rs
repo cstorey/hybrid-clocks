@@ -27,10 +27,12 @@ pub use crate::source::*;
 pub enum Error {
     #[error("Offset greater than limit")]
     OffsetTooGreat,
-    #[error("Outside of time range")]
+    #[error("Outside of specified offset")]
     SystemTime(#[from] std::time::SystemTimeError),
     #[error("Integer conversion error")]
     FromInt(#[from] std::num::TryFromIntError),
+    #[error("Outside supported time range: {0}ticks")]
+    SupportedTime(u128),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
