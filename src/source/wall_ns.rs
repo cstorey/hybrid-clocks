@@ -63,7 +63,7 @@ impl ClockSource for WallNS {
 }
 
 impl fmt::Display for WallNST {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let tm = time::at_utc(self.as_timespec());
         write!(
             fmt,

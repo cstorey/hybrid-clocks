@@ -1,5 +1,5 @@
 extern crate hybrid_clocks as hlc;
-extern crate time;
+
 use crate::hlc::Clock;
 
 fn main() {

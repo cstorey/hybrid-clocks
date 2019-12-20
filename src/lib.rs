@@ -7,8 +7,6 @@
 
 #![deny(warnings)]
 
-extern crate time;
-
 #[macro_use]
 extern crate quick_error;
 
@@ -19,8 +17,6 @@ extern crate serde;
 extern crate serde_derive;
 #[cfg(all(feature = "serialization", test))]
 extern crate serde_json;
-#[cfg(test)]
-extern crate suppositions;
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -191,7 +187,7 @@ impl<S: ClockSource> Clock<S> {
 }
 
 impl<T: fmt::Display> fmt::Display for Timestamp<T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{}:{}+{}", self.epoch, self.time, self.count)
     }
 }
