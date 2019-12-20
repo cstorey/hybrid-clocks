@@ -29,6 +29,8 @@ pub enum Error {
     OffsetTooGreat,
     #[error("Outside of time range")]
     SystemTime(#[from] std::time::SystemTimeError),
+    #[error("Integer conversion error")]
+    FromInt(#[from] std::num::TryFromIntError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

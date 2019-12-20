@@ -5,7 +5,6 @@ use std::ops::Sub;
 use std::time::{Duration, SystemTime};
 
 use super::ClockSource;
-use super::NANOS_PER_SEC;
 use crate::{Result, Timestamp};
 
 /// A clock source that returns wall-clock in nanoseconds.
@@ -18,10 +17,7 @@ pub struct WallNST(u64);
 impl WallNST {
     /// Returns a `SystemTime` representing this timestamp.
     pub fn duration_since_epoch(self) -> Duration {
-        // TODO: Avoid arithmetic
-        let secs = self.0 / NANOS_PER_SEC;
-        let nsecs = self.0 % NANOS_PER_SEC;
-        Duration::new(secs, nsecs.try_into().expect("internal conversion error"))
+        Duration::from_nanos(self.0)
     }
     pub fn as_timespec(self) -> SystemTime {
         SystemTime::UNIX_EPOCH + self.duration_since_epoch()
@@ -29,11 +25,12 @@ impl WallNST {
     /// Returns a `WallNST` representing the `SystemTime`.
     pub fn from_timespec(t: SystemTime) -> Result<Self> {
         let epoch = t.duration_since(SystemTime::UNIX_EPOCH)?;
-        Ok(Self::from_since_epoch(epoch))
+        Self::from_since_epoch(epoch)
     }
     /// Returns a `WallNST` representing the `SystemTime`.
-    pub fn from_since_epoch(since_epoch: Duration) -> Self {
-        WallNST(since_epoch.as_secs() as u64 * NANOS_PER_SEC + since_epoch.subsec_nanos() as u64)
+    /// Fails if the time isn't representable in 64 bits.
+    pub fn from_since_epoch(since_epoch: Duration) -> Result<Self> {
+        Ok(WallNST(since_epoch.as_nanos().try_into()?))
     }
 
     /// Returns time in nanoseconds since the unix epoch.
