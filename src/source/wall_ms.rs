@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 use std::fmt;
 use std::ops::Sub;
-use time::Duration;
+use std::time::{Duration, SystemTime};
 
 use super::{ClockSource, NANOS_PER_SEC};
-use crate::Timestamp;
+use crate::{Result, Timestamp};
 
 // A clock source that returns wall-clock in 2^(-16)s
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -35,23 +35,32 @@ impl Timestamp<WallMST> {
 }
 impl WallMST {
     const TICKS_PER_SEC: u64 = 1 << 16;
-    /// Returns a `time::Timespec` representing this timestamp.
-    pub fn as_timespec(self) -> time::Timespec {
+    /// Returns a `SystemTime` representing this timestamp.
+    pub fn duration_since_epoch(self) -> Duration {
+        // TODO: use Duration::from_nanos
         let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
         let secs = self.0 / Self::TICKS_PER_SEC;
         let minor_ticks = self.0 % Self::TICKS_PER_SEC;
         let nsecs = minor_ticks * nanos_per_tick;
-        time::Timespec {
-            sec: secs as i64,
-            nsec: nsecs as i32,
-        }
+        assert!(nsecs < 1000_000_000, "Internal arithmetic error");
+        Duration::new(secs, nsecs.try_into().expect("internal error"))
     }
 
-    /// Returns a `WallMST` representing the `time::Timespec`.
-    pub fn from_timespec(t: time::Timespec) -> Self {
+    pub fn as_timespec(self) -> SystemTime {
+        SystemTime::UNIX_EPOCH + self.duration_since_epoch()
+    }
+
+    /// Returns a `WallMST` representing the `SystemTime`.
+    pub fn from_timespec(t: SystemTime) -> Result<Self> {
+        // TODO: use Duration::as_nanos
+        let since_epoch = t.duration_since(SystemTime::UNIX_EPOCH)?;
+        Ok(Self::from_since_epoch(since_epoch))
+    }
+
+    pub fn from_since_epoch(since_epoch: Duration) -> Self {
         let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
-        let major_ticks = t.sec as u64 * Self::TICKS_PER_SEC;
-        let minor_ticks = t.nsec as u64 / nanos_per_tick;
+        let major_ticks = since_epoch.as_secs() * Self::TICKS_PER_SEC;
+        let minor_ticks = u64::from(since_epoch.subsec_nanos()) / nanos_per_tick;
         WallMST(major_ticks + minor_ticks)
     }
 
@@ -69,26 +78,21 @@ impl WallMST {
 impl Sub for WallMST {
     type Output = Duration;
     fn sub(self, rhs: Self) -> Self::Output {
-        self.as_timespec() - rhs.as_timespec()
+        self.duration_since_epoch() - rhs.duration_since_epoch()
     }
 }
 
 impl ClockSource for WallMS {
     type Time = WallMST;
     type Delta = Duration;
-    fn now(&mut self) -> Self::Time {
-        WallMST::from_timespec(time::get_time())
+    fn now(&mut self) -> Result<Self::Time> {
+        WallMST::from_timespec(SystemTime::now())
     }
 }
 
 impl fmt::Display for WallMST {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let tm = time::at_utc(self.as_timespec());
-        write!(
-            fmt,
-            "{}",
-            tm.strftime("%Y-%m-%dT%H:%M:%S.%fZ").expect("strftime")
-        )
+        write!(fmt, "{}", self.duration_since_epoch().as_secs_f64(),)
     }
 }
 #[cfg(test)]
@@ -118,17 +122,8 @@ mod tests {
     fn should_round_trip_via_timespec() {
         property(wallclocks2()).check(|wc| {
             let tsp = wc.as_timespec();
-            let wc2 = WallMST::from_timespec(tsp);
-            assert_eq!(
-                wc,
-                wc2,
-                "left:{}; tsp: {}; right:{}",
-                wc,
-                time::at_utc(tsp)
-                    .strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-                    .expect("strftime"),
-                wc2
-            );
+            let wc2 = WallMST::from_timespec(tsp).expect("from time");
+            assert_eq!(wc, wc2, "left:{}; tsp: {:?}; right:{}", wc, tsp, wc2);
         });
     }
 
