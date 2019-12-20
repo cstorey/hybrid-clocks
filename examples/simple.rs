@@ -1,6 +1,6 @@
 extern crate hybrid_clocks as hlc;
-extern crate time;
-use hlc::Clock;
+
+use crate::hlc::Clock;
 
 fn main() {
     let mut clock_a = Clock::wall_ns();

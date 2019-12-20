@@ -7,11 +7,6 @@
 
 #![deny(warnings)]
 
-extern crate time;
-
-#[macro_use]
-extern crate quick_error;
-
 #[cfg(feature = "serialization")]
 extern crate serde;
 #[cfg(feature = "serialization")]
@@ -19,21 +14,19 @@ extern crate serde;
 extern crate serde_derive;
 #[cfg(all(feature = "serialization", test))]
 extern crate serde_json;
-#[cfg(test)]
-extern crate suppositions;
 
 use std::cmp::Ordering;
 use std::fmt;
 
-mod source;
-pub use source::*;
+use thiserror::Error;
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum Error {
-        OffsetTooGreat {
-        }
-    }
+mod source;
+pub use crate::source::*;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Offset greater than limit")]
+    OffsetTooGreat,
 }
 
 /// A value that represents a logical timestamp.
@@ -191,7 +184,7 @@ impl<S: ClockSource> Clock<S> {
 }
 
 impl<T: fmt::Display> fmt::Display for Timestamp<T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{}:{}+{}", self.epoch, self.time, self.count)
     }
 }
