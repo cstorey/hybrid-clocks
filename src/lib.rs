@@ -225,7 +225,7 @@ mod tests {
 
     pub fn timestamps<C: Generator + 'static>(
         times: C,
-    ) -> Box<GeneratorObject<Item = Timestamp<C::Item>>> {
+    ) -> Box<dyn GeneratorObject<Item = Timestamp<C::Item>>> {
         let epochs = u32s();
         let counts = u32s();
         (epochs, times, counts)

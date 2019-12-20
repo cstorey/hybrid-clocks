@@ -100,7 +100,7 @@ mod tests {
 
     use suppositions::*;
 
-    fn wallclocks2() -> Box<GeneratorObject<Item = WallMST>> {
+    fn wallclocks2() -> Box<dyn GeneratorObject<Item = WallMST>> {
         u64s().map(WallMST).boxed()
     }
 

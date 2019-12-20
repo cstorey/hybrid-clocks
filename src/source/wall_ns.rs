@@ -183,7 +183,7 @@ mod tests {
 
     use suppositions::*;
 
-    fn wallclocks_ns() -> Box<GeneratorObject<Item = WallNST>> {
+    fn wallclocks_ns() -> Box<dyn GeneratorObject<Item = WallNST>> {
         u64s().map(WallNST::of_nanos).boxed()
     }
 
