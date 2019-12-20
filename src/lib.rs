@@ -161,7 +161,7 @@ impl<S: ClockSource> Clock<S> {
     /// the observed timestamp is greater than our configured limit.
     pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<(), Error> {
         let pt = self.read_pt();
-        try!(self.verify_offset(&pt, msg));
+        self.verify_offset(&pt, msg)?;
         self.do_observe(&msg);
         Ok(())
     }
@@ -219,13 +219,13 @@ mod tests {
         clock: &mut Clock<ManualClock>,
         msg: &Timestamp<u64>,
     ) -> Result<Timestamp<u64>, super::Error> {
-        try!(clock.observe(msg));
+        clock.observe(msg)?;
         Ok(clock.now())
     }
 
     pub fn timestamps<C: Generator + 'static>(
         times: C,
-    ) -> Box<GeneratorObject<Item = Timestamp<C::Item>>> {
+    ) -> Box<dyn GeneratorObject<Item = Timestamp<C::Item>>> {
         let epochs = u32s();
         let counts = u32s();
         (epochs, times, counts)
