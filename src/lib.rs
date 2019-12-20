@@ -161,7 +161,7 @@ impl<S: ClockSource> Clock<S> {
     /// the observed timestamp is greater than our configured limit.
     pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<(), Error> {
         let pt = self.read_pt();
-        try!(self.verify_offset(&pt, msg));
+        self.verify_offset(&pt, msg)?;
         self.do_observe(&msg);
         Ok(())
     }
@@ -219,7 +219,7 @@ mod tests {
         clock: &mut Clock<ManualClock>,
         msg: &Timestamp<u64>,
     ) -> Result<Timestamp<u64>, super::Error> {
-        try!(clock.observe(msg));
+        clock.observe(msg)?;
         Ok(clock.now())
     }
 

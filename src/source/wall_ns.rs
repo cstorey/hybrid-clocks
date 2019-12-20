@@ -129,8 +129,8 @@ pub mod v1 {
 
     impl ser::Serialize for WallNST {
         fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            let mut tuple_state = try!(serializer.serialize_tuple_struct("WallNST", 1usize));
-            try!(tuple_state.serialize_field(&self.0));
+            let mut tuple_state = serializer.serialize_tuple_struct("WallNST", 1usize)?;
+            tuple_state.serialize_field(&self.0)?;
             return tuple_state.end();
         }
     }
@@ -150,7 +150,7 @@ pub mod v1 {
                     V: de::SeqAccess<'de>,
                 {
                     {
-                        let field0 = match try!(visitor.next_element()) {
+                        let field0 = match visitor.next_element() {
                             Some(value) => value,
                             None => {
                                 return Err(de::Error::invalid_length(
