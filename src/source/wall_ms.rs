@@ -107,9 +107,26 @@ impl ClockSource for WallMS {
 }
 
 impl fmt::Display for WallMST {
+    #[cfg(not(feature = "pretty-print"))]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.duration_since_epoch() {
             Ok(epoch) => write!(fmt, "{}", epoch.as_secs_f64()),
+            Err(e) => write!(fmt, "{}", e),
+        }
+    }
+
+    #[cfg(feature = "pretty-print")]
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.as_systemtime() {
+            Ok(ts) => {
+                let st = time::PrimitiveDateTime::from(ts);
+                write!(
+                    fmt,
+                    "{}.{:09}Z",
+                    st.format("%Y-%m-%dT%H:%M:%S"),
+                    st.nanosecond(),
+                )
+            }
             Err(e) => write!(fmt, "{}", e),
         }
     }
