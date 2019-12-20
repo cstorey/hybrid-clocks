@@ -1,14 +1,15 @@
 use std::convert::TryInto;
 use std::fmt;
 use std::ops::Sub;
-use time::Duration;
+use std::time::{Duration, SystemTime};
 
 use super::{ClockSource, NANOS_PER_SEC};
-use crate::Timestamp;
+use crate::{Error, Result, Timestamp};
 
 // A clock source that returns wall-clock in 2^(-16)s
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WallMS;
+/// Representation of our timestamp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
 pub struct WallMST(u64);
@@ -35,24 +36,45 @@ impl Timestamp<WallMST> {
 }
 impl WallMST {
     const TICKS_PER_SEC: u64 = 1 << 16;
-    /// Returns a `time::Timespec` representing this timestamp.
-    pub fn as_timespec(self) -> time::Timespec {
+    /// Returns a `SystemTime` representing this timestamp.
+    pub fn duration_since_epoch(self) -> Result<Duration> {
+        // TODO: use Duration::from_nanos
         let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
         let secs = self.0 / Self::TICKS_PER_SEC;
         let minor_ticks = self.0 % Self::TICKS_PER_SEC;
         let nsecs = minor_ticks * nanos_per_tick;
-        time::Timespec {
-            sec: secs as i64,
-            nsec: nsecs as i32,
-        }
+        assert!(nsecs < 1000_000_000, "Internal arithmetic error");
+        Duration::new(secs, nsecs.try_into().expect("internal error"));
+
+        let nanos = u128::from(self.0)
+            .checked_mul(u128::from(NANOS_PER_SEC))
+            .ok_or_else(|| Error::SupportedTime(self.0.into()))?
+            / u128::from(Self::TICKS_PER_SEC);
+
+        Ok(Duration::from_nanos(
+            nanos
+                .try_into()
+                .map_err(|_| Error::SupportedTime(nanos.into()))?,
+        ))
     }
 
-    /// Returns a `WallMST` representing the `time::Timespec`.
-    pub fn from_timespec(t: time::Timespec) -> Self {
-        let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
-        let major_ticks = t.sec as u64 * Self::TICKS_PER_SEC;
-        let minor_ticks = t.nsec as u64 / nanos_per_tick;
-        WallMST(major_ticks + minor_ticks)
+    pub fn as_systemtime(self) -> Result<SystemTime> {
+        Ok(SystemTime::UNIX_EPOCH + self.duration_since_epoch()?)
+    }
+
+    /// Returns a `WallMST` representing the `SystemTime`.
+    pub fn from_timespec(t: SystemTime) -> Result<Self> {
+        // TODO: use Duration::as_nanos
+        let since_epoch = t.duration_since(SystemTime::UNIX_EPOCH)?;
+        Self::from_since_epoch(since_epoch)
+    }
+
+    pub fn from_since_epoch(since_epoch: Duration) -> Result<Self> {
+        let ticks: u128 = u128::from(Self::TICKS_PER_SEC)
+            .checked_mul(since_epoch.as_nanos())
+            .ok_or_else(|| Error::SupportedTime(since_epoch.as_nanos()))?
+            / u128::from(NANOS_PER_SEC);
+        Ok(WallMST(ticks.try_into()?))
     }
 
     /// Returns time in nanoseconds since the unix epoch.
@@ -69,28 +91,30 @@ impl WallMST {
 impl Sub for WallMST {
     type Output = Duration;
     fn sub(self, rhs: Self) -> Self::Output {
-        self.as_timespec() - rhs.as_timespec()
+        let nanos = (self.0 - rhs.0)
+            .checked_mul(NANOS_PER_SEC / Self::TICKS_PER_SEC)
+            .expect("inside time range");
+        Duration::from_nanos(nanos)
     }
 }
 
 impl ClockSource for WallMS {
     type Time = WallMST;
     type Delta = Duration;
-    fn now(&mut self) -> Self::Time {
-        WallMST::from_timespec(time::get_time())
+    fn now(&mut self) -> Result<Self::Time> {
+        WallMST::from_timespec(SystemTime::now())
     }
 }
 
 impl fmt::Display for WallMST {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let tm = time::at_utc(self.as_timespec());
-        write!(
-            fmt,
-            "{}",
-            tm.strftime("%Y-%m-%dT%H:%M:%S.%fZ").expect("strftime")
-        )
+        match self.duration_since_epoch() {
+            Ok(epoch) => write!(fmt, "{}", epoch.as_secs_f64()),
+            Err(e) => write!(fmt, "{}", e),
+        }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::WallMST;
@@ -101,7 +125,21 @@ mod tests {
     use suppositions::*;
 
     fn wallclocks2() -> Box<dyn GeneratorObject<Item = WallMST>> {
-        u64s().map(WallMST).boxed()
+        u64s()
+            .map(|val| {
+                let limit = u64::max_value() / 200000;
+                let scaled = (u128::from(val) * u128::from(limit)) >> 64;
+                eprintln!(
+                    "val:{} * limit:{} -> {}; scaled:{}",
+                    u128::from(val),
+                    u128::from(limit),
+                    u128::from(val) * u128::from(limit),
+                    scaled
+                );
+                eprintln!("{}", WallMST(scaled as u64));
+                WallMST(scaled as u64)
+            })
+            .boxed()
     }
 
     #[test]
@@ -116,18 +154,20 @@ mod tests {
 
     #[test]
     fn should_round_trip_via_timespec() {
+        // We expect millisecond precision, so ensure we're within ± 0.5ms
+        let allowable_error = WallMST::TICKS_PER_SEC / 1000 / 2;
+
         property(wallclocks2()).check(|wc| {
-            let tsp = wc.as_timespec();
-            let wc2 = WallMST::from_timespec(tsp);
-            assert_eq!(
+            let tsp = wc.as_systemtime().expect("wall time");
+            let wc2 = WallMST::from_timespec(tsp).expect("from time");
+            let diff = wc.0 - wc2.0;
+            assert!(
+                diff <= allowable_error,
+                "left:{}; tsp: {:?}; right:{}; diff:{}",
                 wc,
+                tsp,
                 wc2,
-                "left:{}; tsp: {}; right:{}",
-                wc,
-                time::at_utc(tsp)
-                    .strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-                    .expect("strftime"),
-                wc2
+                diff
             );
         });
     }
@@ -137,8 +177,8 @@ mod tests {
         property((wallclocks2(), wallclocks2())).check(|(ta, tb)| {
             use std::cmp::Ord;
 
-            let ba = ta.as_timespec();
-            let bb = tb.as_timespec();
+            let ba = ta.as_systemtime().expect("wall time");
+            let bb = tb.as_systemtime().expect("wall time");
             ta.cmp(&tb) == ba.cmp(&bb)
         })
     }

@@ -1,13 +1,15 @@
 use std::cell::Cell;
 
 use super::ClockSource;
+use crate::Result;
+
 pub struct ManualClock(Cell<u64>);
 
 impl<'a> ClockSource for ManualClock {
     type Time = u64;
     type Delta = u64;
-    fn now(&mut self) -> Self::Time {
-        self.0.get()
+    fn now(&mut self) -> Result<Self::Time> {
+        Ok(self.0.get())
     }
 }
 

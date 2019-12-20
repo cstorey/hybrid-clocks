@@ -2,11 +2,10 @@ use std::convert::TryInto;
 use std::fmt;
 use std::io;
 use std::ops::Sub;
-use time::Duration;
+use std::time::{Duration, SystemTime};
 
 use super::ClockSource;
-use super::NANOS_PER_SEC;
-use crate::Timestamp;
+use crate::{Result, Timestamp};
 
 /// A clock source that returns wall-clock in nanoseconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -16,19 +15,22 @@ pub struct WallNS;
 pub struct WallNST(u64);
 
 impl WallNST {
-    /// Returns a `time::Timespec` representing this timestamp.
-    pub fn as_timespec(self) -> time::Timespec {
-        let secs = self.0 / NANOS_PER_SEC;
-        let nsecs = self.0 % NANOS_PER_SEC;
-        time::Timespec {
-            sec: secs as i64,
-            nsec: nsecs as i32,
-        }
+    /// Returns a `SystemTime` representing this timestamp.
+    pub fn duration_since_epoch(self) -> Duration {
+        Duration::from_nanos(self.0)
     }
-
-    /// Returns a `WallNST` representing the `time::Timespec`.
-    pub fn from_timespec(t: time::Timespec) -> Self {
-        WallNST(t.sec as u64 * NANOS_PER_SEC + t.nsec as u64)
+    pub fn as_systemtime(self) -> SystemTime {
+        SystemTime::UNIX_EPOCH + self.duration_since_epoch()
+    }
+    /// Returns a `WallNST` representing the `SystemTime`.
+    pub fn from_timespec(t: SystemTime) -> Result<Self> {
+        let epoch = t.duration_since(SystemTime::UNIX_EPOCH)?;
+        Self::from_since_epoch(epoch)
+    }
+    /// Returns a `WallNST` representing the `SystemTime`.
+    /// Fails if the time isn't representable in 64 bits.
+    pub fn from_since_epoch(since_epoch: Duration) -> Result<Self> {
+        Ok(WallNST(since_epoch.as_nanos().try_into()?))
     }
 
     /// Returns time in nanoseconds since the unix epoch.
@@ -50,31 +52,26 @@ impl Sub for WallNST {
     type Output = Duration;
     fn sub(self, rhs: Self) -> Self::Output {
         let nanos = self.0 - rhs.0;
-        Duration::nanoseconds(nanos as i64)
+        Duration::from_nanos(nanos)
     }
 }
 
 impl ClockSource for WallNS {
     type Time = WallNST;
     type Delta = Duration;
-    fn now(&mut self) -> Self::Time {
-        WallNST::from_timespec(time::get_time())
+    fn now(&mut self) -> Result<Self::Time> {
+        WallNST::from_timespec(SystemTime::now())
     }
 }
 
 impl fmt::Display for WallNST {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let tm = time::at_utc(self.as_timespec());
-        write!(
-            fmt,
-            "{}",
-            tm.strftime("%Y-%m-%dT%H:%M:%S.%fZ").expect("strftime")
-        )
+        write!(fmt, "{}", self.duration_since_epoch().as_secs_f64(),)
     }
 }
 
 impl Timestamp<WallNST> {
-    pub fn write_bytes<W: io::Write>(&self, mut wr: W) -> Result<(), io::Error> {
+    pub fn write_bytes<W: io::Write>(&self, mut wr: W) -> std::result::Result<(), io::Error> {
         wr.write_all(&self.to_bytes())?;
         return Ok(());
     }
@@ -87,7 +84,7 @@ impl Timestamp<WallNST> {
         return res;
     }
 
-    pub fn read_bytes<R: io::Read>(mut r: R) -> Result<Self, io::Error> {
+    pub fn read_bytes<R: io::Read>(mut r: R) -> std::result::Result<Self, io::Error> {
         let mut buf = [0u8; 16];
         r.read_exact(&mut buf)?;
         Ok(Self::from_bytes(buf))
