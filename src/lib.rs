@@ -29,6 +29,8 @@ pub enum Error {
     OffsetTooGreat,
 }
 
+pub type Result<T> = std::result::Result<T, Error>;
+
 /// A value that represents a logical timestamp.
 ///
 /// These allow us to describe at least a partial ordering over events, in the
@@ -152,7 +154,7 @@ impl<S: ClockSource> Clock<S> {
     /// `happens-after` either locally generated timestamps or that of the
     /// input message. Returns an Error iff the delta from our local lock to
     /// the observed timestamp is greater than our configured limit.
-    pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<(), Error> {
+    pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<()> {
         let pt = self.read_pt();
         self.verify_offset(&pt, msg)?;
         self.do_observe(&msg);
@@ -167,11 +169,7 @@ impl<S: ClockSource> Clock<S> {
         }
     }
 
-    fn verify_offset(
-        &self,
-        pt: &Timestamp<S::Time>,
-        msg: &Timestamp<S::Time>,
-    ) -> Result<(), Error> {
+    fn verify_offset(&self, pt: &Timestamp<S::Time>, msg: &Timestamp<S::Time>) -> Result<()> {
         if let Some(ref max) = self.max_offset {
             let diff = msg.time - pt.time;
             if &diff > max {
