@@ -26,7 +26,7 @@ use std::cmp::Ordering;
 use std::fmt;
 
 mod source;
-pub use source::*;
+pub use crate::source::*;
 
 quick_error! {
     #[derive(Debug)]
