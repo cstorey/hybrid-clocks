@@ -58,7 +58,7 @@ impl WallMST {
         ))
     }
 
-    pub fn as_timespec(self) -> Result<SystemTime> {
+    pub fn as_systemtime(self) -> Result<SystemTime> {
         Ok(SystemTime::UNIX_EPOCH + self.duration_since_epoch()?)
     }
 
@@ -158,7 +158,7 @@ mod tests {
         let allowable_error = WallMST::TICKS_PER_SEC / 1000 / 2;
 
         property(wallclocks2()).check(|wc| {
-            let tsp = wc.as_timespec().expect("wall time");
+            let tsp = wc.as_systemtime().expect("wall time");
             let wc2 = WallMST::from_timespec(tsp).expect("from time");
             let diff = wc.0 - wc2.0;
             assert!(
@@ -177,8 +177,8 @@ mod tests {
         property((wallclocks2(), wallclocks2())).check(|(ta, tb)| {
             use std::cmp::Ord;
 
-            let ba = ta.as_timespec().expect("wall time");
-            let bb = tb.as_timespec().expect("wall time");
+            let ba = ta.as_systemtime().expect("wall time");
+            let bb = tb.as_systemtime().expect("wall time");
             ta.cmp(&tb) == ba.cmp(&bb)
         })
     }

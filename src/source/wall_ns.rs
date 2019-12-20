@@ -19,7 +19,7 @@ impl WallNST {
     pub fn duration_since_epoch(self) -> Duration {
         Duration::from_nanos(self.0)
     }
-    pub fn as_timespec(self) -> SystemTime {
+    pub fn as_systemtime(self) -> SystemTime {
         SystemTime::UNIX_EPOCH + self.duration_since_epoch()
     }
     /// Returns a `WallNST` representing the `SystemTime`.
