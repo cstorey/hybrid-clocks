@@ -7,9 +7,6 @@
 
 #![deny(warnings)]
 
-#[macro_use]
-extern crate quick_error;
-
 #[cfg(feature = "serialization")]
 extern crate serde;
 #[cfg(feature = "serialization")]
@@ -21,15 +18,15 @@ extern crate serde_json;
 use std::cmp::Ordering;
 use std::fmt;
 
+use thiserror::Error;
+
 mod source;
 pub use crate::source::*;
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum Error {
-        OffsetTooGreat {
-        }
-    }
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Offset greater than limit")]
+    OffsetTooGreat,
 }
 
 /// A value that represents a logical timestamp.
