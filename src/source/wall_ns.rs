@@ -65,8 +65,20 @@ impl ClockSource for WallNS {
 }
 
 impl fmt::Display for WallNST {
+    #[cfg(not(feature = "pretty-print"))]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}", self.duration_since_epoch().as_secs_f64(),)
+        write!(fmt, "{}", self.duration_since_epoch().as_secs_f64())
+    }
+
+    #[cfg(feature = "pretty-print")]
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let st = time::PrimitiveDateTime::from(self.as_systemtime());
+        write!(
+            fmt,
+            "{}.{:09}Z",
+            st.format("%Y-%m-%dT%H:%M:%S"),
+            st.nanosecond(),
+        )
     }
 }
 
