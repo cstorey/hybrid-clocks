@@ -108,19 +108,9 @@ impl<S: ClockSource> Clock<S> {
 
     /// Creates a clock with `src` as the time provider, and `diff` as how far
     /// in the future we don't mind seeing updates from.
-    pub fn new_with_max_diff(mut src: S, diff: S::Delta) -> Result<Self> {
-        let init = src.now()?;
-        let clock = Clock {
-            src: src,
-            last_observed: Timestamp {
-                epoch: 0,
-                time: init,
-                count: 0,
-            },
-            max_offset: Some(diff),
-            epoch: 0,
-        };
-        Ok(clock)
+    pub fn with_max_diff(mut self, diff: S::Delta) -> Self {
+        self.max_offset = Some(diff);
+        self
     }
 
     /// Used to create a new "epoch" of clock times, mostly useful as a manual
@@ -588,7 +578,7 @@ mod tests {
     #[test]
     fn should_ignore_clocks_too_far_forward() -> Result<()> {
         let src = ManualClock::new(0);
-        let mut clock = Clock::new_with_max_diff(src, 10)?;
+        let mut clock = Clock::new(src)?.with_max_diff(10);
         assert!(observing(
             &mut clock,
             &Timestamp {
@@ -620,7 +610,7 @@ mod tests {
     #[test]
     fn should_account_for_time_passing_when_checking_max_error() -> Result<()> {
         let src = ManualClock::new(0);
-        let mut clock = Clock::new_with_max_diff(src, 10)?;
+        let mut clock = Clock::new(src)?.with_max_diff(10);
         clock.set_time(1);
         assert!(observing(
             &mut clock,
