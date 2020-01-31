@@ -62,7 +62,13 @@ pub struct Clock<S: ClockSource> {
     src: S,
     epoch: u32,
     last_observed: Timestamp<S::Time>,
-    max_offset: Option<S::Delta>,
+}
+
+/// A wrapper around `Clock` that will refuse updates outside of our tolerance.
+#[derive(Debug, Clone)]
+pub struct OffsetLimiter<S: ClockSource> {
+    clock: Clock<S>,
+    max_offset: S::Delta,
 }
 
 impl Clock<WallNS> {
@@ -100,7 +106,6 @@ impl<S: ClockSource> Clock<S> {
                 time: init,
                 count: 0,
             },
-            max_offset: None,
             epoch: 0,
         };
         Ok(clock)
@@ -108,9 +113,11 @@ impl<S: ClockSource> Clock<S> {
 
     /// Creates a clock with `src` as the time provider, and `diff` as how far
     /// in the future we don't mind seeing updates from.
-    pub fn with_max_diff(mut self, diff: S::Delta) -> Self {
-        self.max_offset = Some(diff);
-        self
+    pub fn with_max_diff(self, max_offset: S::Delta) -> OffsetLimiter<S> {
+        OffsetLimiter {
+            clock: self,
+            max_offset,
+        }
     }
 
     /// Used to create a new "epoch" of clock times, mostly useful as a manual
@@ -150,13 +157,9 @@ impl<S: ClockSource> Clock<S> {
     /// Accepts a timestamp from an incoming message, and updates the clock
     /// so that further calls to `now` will always return a timestamp that
     /// `happens-after` either locally generated timestamps or that of the
-    /// input message. Returns an Error iff the delta from our local lock to
-    /// the observed timestamp is greater than our configured limit.
-    pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<()> {
-        let pt = self.read_pt()?;
-        self.verify_offset(&pt, msg)?;
+    /// input message.
+    pub fn observe(&mut self, msg: &Timestamp<S::Time>) {
         self.do_observe(&msg);
-        Ok(())
     }
 
     fn read_pt(&mut self) -> Result<Timestamp<S::Time>> {
@@ -166,13 +169,29 @@ impl<S: ClockSource> Clock<S> {
             count: 0,
         })
     }
+}
+impl<S: ClockSource> OffsetLimiter<S> {
+    /// Accepts a timestamp from an incoming message, and updates the clock
+    /// so that further calls to `now` will always return a timestamp that
+    /// `happens-after` either locally generated timestamps or that of the
+    /// input message. Returns an Error iff the delta from our local lock to
+    /// the observed timestamp is greater than our configured limit.
+    pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<()> {
+        let pt = self.clock.read_pt()?;
+        self.verify_offset(&pt, msg)?;
+        self.clock.observe(&msg);
+        Ok(())
+    }
+
+    /// Creates a unique monotonic timestamp suitable for annotating messages we send.
+    pub fn now(&mut self) -> Result<Timestamp<S::Time>> {
+        self.clock.now()
+    }
 
     fn verify_offset(&self, pt: &Timestamp<S::Time>, msg: &Timestamp<S::Time>) -> Result<()> {
-        if let Some(ref max) = self.max_offset {
-            let diff = msg.time - pt.time;
-            if &diff > max {
-                return Err(Error::OffsetTooGreat);
-            }
+        let diff = msg.time - pt.time;
+        if diff > self.max_offset {
+            return Err(Error::OffsetTooGreat);
         }
 
         Ok(())
@@ -209,7 +228,7 @@ mod tests {
         clock: &mut Clock<ManualClock>,
         msg: &Timestamp<u64>,
     ) -> Result<Timestamp<u64>> {
-        clock.observe(msg)?;
+        clock.observe(msg);
         Ok(clock.now()?)
     }
 
@@ -579,25 +598,23 @@ mod tests {
     fn should_ignore_clocks_too_far_forward() -> Result<()> {
         let src = ManualClock::new(0);
         let mut clock = Clock::new(src)?.with_max_diff(10);
-        assert!(observing(
-            &mut clock,
-            &Timestamp {
+        assert!(clock
+            .observe(&Timestamp {
                 epoch: 0,
                 time: 11,
                 count: 0
-            }
-        )
-        .is_err());
+            })
+            .is_err());
+
+        clock
+            .observe(&Timestamp {
+                epoch: 0,
+                time: 1,
+                count: 0,
+            })
+            .unwrap();
         assert_eq!(
-            observing(
-                &mut clock,
-                &Timestamp {
-                    epoch: 0,
-                    time: 1,
-                    count: 0
-                }
-            )
-            .unwrap(),
+            clock.now().expect("now"),
             Timestamp {
                 epoch: 0,
                 time: 1,
@@ -611,16 +628,15 @@ mod tests {
     fn should_account_for_time_passing_when_checking_max_error() -> Result<()> {
         let src = ManualClock::new(0);
         let mut clock = Clock::new(src)?.with_max_diff(10);
-        clock.set_time(1);
-        assert!(observing(
-            &mut clock,
-            &Timestamp {
+        clock.clock.set_time(1);
+
+        assert!(clock
+            .observe(&Timestamp {
                 epoch: 0,
                 time: 11,
                 count: 0
-            }
-        )
-        .is_ok());
+            })
+            .is_ok());
         Ok(())
     }
 
