@@ -196,6 +196,21 @@ impl<S: ClockSource> OffsetLimiter<S> {
 
         Ok(())
     }
+
+    /// Extract the inner `Clock`
+    pub fn into_inner(self) -> Clock<S> {
+        self.clock
+    }
+
+    /// Get a reference to the inner `Clock`
+    pub fn inner(&self) -> &Clock<S> {
+        &self.clock
+    }
+
+    /// Get a mutable reference to the inner `Clock`
+    pub fn inner_mut(&mut self) -> &mut Clock<S> {
+        &mut self.clock
+    }
 }
 
 impl<T: fmt::Display> fmt::Display for Timestamp<T> {
