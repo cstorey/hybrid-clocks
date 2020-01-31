@@ -114,10 +114,7 @@ impl<S: ClockSource> Clock<S> {
     /// Creates a clock with `src` as the time provider, and `diff` as how far
     /// in the future we don't mind seeing updates from.
     pub fn with_max_diff(self, max_offset: S::Delta) -> OffsetLimiter<S> {
-        OffsetLimiter {
-            clock: self,
-            max_offset,
-        }
+        OffsetLimiter::new(self, max_offset)
     }
 
     /// Used to create a new "epoch" of clock times, mostly useful as a manual
@@ -171,6 +168,9 @@ impl<S: ClockSource> Clock<S> {
     }
 }
 impl<S: ClockSource> OffsetLimiter<S> {
+    pub fn new(clock: Clock<S>, max_offset: S::Delta) -> Self {
+        OffsetLimiter { clock, max_offset }
+    }
     /// Accepts a timestamp from an incoming message, and updates the clock
     /// so that further calls to `now` will always return a timestamp that
     /// `happens-after` either locally generated timestamps or that of the
