@@ -40,21 +40,13 @@ impl WallMST {
     pub const TICKS_PER_SEC: u64 = 1 << 16;
     /// Returns the `Duration` since the unix epoch.
     pub fn duration_since_epoch(self) -> Result<Duration> {
-        // TODO: use Duration::from_nanos
-        let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
         let secs = self.0 / Self::TICKS_PER_SEC;
         let minor_ticks = self.0 % Self::TICKS_PER_SEC;
-        let nsecs = minor_ticks * nanos_per_tick;
+        let nsecs = minor_ticks * NANOS_PER_SEC / Self::TICKS_PER_SEC;
         assert!(nsecs < 1_000_000_000, "Internal arithmetic error");
-        Duration::new(secs, nsecs.try_into().expect("internal error"));
-
-        let nanos = u128::from(self.0)
-            .checked_mul(u128::from(NANOS_PER_SEC))
-            .ok_or_else(|| Error::SupportedTime(self.0.into()))?
-            / u128::from(Self::TICKS_PER_SEC);
-
-        Ok(Duration::from_nanos(
-            nanos.try_into().map_err(|_| Error::SupportedTime(nanos))?,
+        Ok(Duration::new(
+            secs,
+            nsecs.try_into().expect("internal error"),
         ))
     }
 
@@ -144,21 +136,7 @@ mod tests {
     use suppositions::*;
 
     fn wallclocks2() -> Box<dyn GeneratorObject<Item = WallMST>> {
-        u64s()
-            .map(|val| {
-                let limit = u64::max_value() / 200000;
-                let scaled = (u128::from(val) * u128::from(limit)) >> 64;
-                eprintln!(
-                    "val:{} * limit:{} -> {}; scaled:{}",
-                    u128::from(val),
-                    u128::from(limit),
-                    u128::from(val) * u128::from(limit),
-                    scaled
-                );
-                eprintln!("{}", WallMST(scaled as u64));
-                WallMST(scaled as u64)
-            })
-            .boxed()
+        u64s().map(WallMST).boxed()
     }
 
     #[test]
