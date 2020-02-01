@@ -1,8 +1,11 @@
-use hybrid_clocks::{Clock, ManualClock, Result, Timestamp};
+use hybrid_clocks::{Clock, ManualClock, ManualT, Result, Timestamp};
 use suppositions::generators::*;
 use suppositions::*;
 
-fn observing(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result<Timestamp<u64>> {
+fn observing(
+    clock: &mut Clock<ManualClock>,
+    msg: &Timestamp<ManualT>,
+) -> Result<Timestamp<ManualT>> {
     clock.observe(msg);
     Ok(clock.now()?)
 }
@@ -16,6 +19,9 @@ pub fn timestamps<C: Generator + 'static>(
         .map(|(epoch, time, count)| Timestamp { epoch, time, count })
         .boxed()
 }
+pub fn manualts() -> Box<dyn GeneratorObject<Item = ManualT>> {
+    u64s().map(ManualT::from).boxed()
+}
 
 #[test]
 fn fig_6_proc_0_a() -> Result<()> {
@@ -25,7 +31,7 @@ fn fig_6_proc_0_a() -> Result<()> {
         clock.now()?,
         Timestamp {
             epoch: 0,
-            time: 10,
+            time: 10.into(),
             count: 0
         }
     );
@@ -40,14 +46,14 @@ fn fig_6_proc_1_a() -> Result<()> {
             &mut clock,
             &Timestamp {
                 epoch: 0,
-                time: 10,
+                time: 10.into(),
                 count: 0
             }
         )
         .unwrap(),
         Timestamp {
             epoch: 0,
-            time: 10,
+            time: 10.into(),
             count: 1
         }
     );
@@ -61,7 +67,7 @@ fn fig_6_proc_1_b() -> Result<()> {
         &mut clock,
         &Timestamp {
             epoch: 0,
-            time: 10,
+            time: 10.into(),
             count: 0,
         },
     )
@@ -71,7 +77,7 @@ fn fig_6_proc_1_b() -> Result<()> {
         clock.now()?,
         Timestamp {
             epoch: 0,
-            time: 10,
+            time: 10.into(),
             count: 2
         }
     );
@@ -83,7 +89,7 @@ fn fig_6_proc_2_b() -> Result<()> {
     let mut clock = Clock::manual(0)?;
     clock.observe(&Timestamp {
         epoch: 0,
-        time: 1,
+        time: 1.into(),
         count: 0,
     });
 
@@ -93,14 +99,14 @@ fn fig_6_proc_2_b() -> Result<()> {
             &mut clock,
             &Timestamp {
                 epoch: 0,
-                time: 10,
+                time: 10.into(),
                 count: 2
             }
         )
         .unwrap(),
         Timestamp {
             epoch: 0,
-            time: 10,
+            time: 10.into(),
             count: 3
         }
     );
@@ -115,7 +121,7 @@ fn fig_6_proc_2_c() -> Result<()> {
         &mut clock,
         &Timestamp {
             epoch: 0,
-            time: 10,
+            time: 10.into(),
             count: 2,
         },
     )
@@ -125,7 +131,7 @@ fn fig_6_proc_2_c() -> Result<()> {
         clock.now()?,
         Timestamp {
             epoch: 0,
-            time: 10,
+            time: 10.into(),
             count: 4
         }
     );
@@ -137,7 +143,7 @@ fn all_sources_same() -> Result<()> {
     let mut clock = Clock::manual(0)?;
     let observed = Timestamp {
         epoch: 0,
-        time: 0,
+        time: 0.into(),
         count: 5,
     };
     let result = observing(&mut clock, &observed)?;
@@ -156,7 +162,7 @@ fn handles_time_going_backwards_now() -> Result<()> {
         clock.now()?,
         Timestamp {
             epoch: 0,
-            time: 10,
+            time: 10.into(),
             count: 2
         }
     );
@@ -172,13 +178,13 @@ fn handles_time_going_backwards_observe() -> Result<()> {
         &mut clock,
         &Timestamp {
             epoch: 0,
-            time: 0,
+            time: 0.into(),
             count: 0,
         },
     )
     .unwrap();
     assert!(result > original);
-    assert!(result.time == 10);
+    assert!(result.time == 10.into());
     Ok(())
 }
 
@@ -194,7 +200,7 @@ fn handles_time_going_forwards_now() -> Result<()> {
         t2,
         Timestamp {
             epoch: 0,
-            time: 12,
+            time: 12.into(),
             count: 0
         }
     );
@@ -211,14 +217,14 @@ fn handles_time_going_forwards_observe() -> Result<()> {
             &mut clock,
             &Timestamp {
                 epoch: 0,
-                time: 0,
+                time: 0.into(),
                 count: 0
             }
         )
         .unwrap(),
         Timestamp {
             epoch: 0,
-            time: 12,
+            time: 12.into(),
             count: 0
         }
     );
@@ -255,7 +261,7 @@ fn should_apply_configured_epoch() -> Result<()> {
         a,
         Timestamp {
             epoch: 1,
-            time: 1,
+            time: 1.into(),
             count: 0
         }
     );
@@ -283,7 +289,7 @@ fn should_update_via_observed_epochs() -> Result<()> {
         a,
         Timestamp {
             epoch: 1,
-            time: 1,
+            time: 1.into(),
             count: 0
         }
     );
@@ -291,7 +297,7 @@ fn should_update_via_observed_epochs() -> Result<()> {
         b,
         Timestamp {
             epoch: 1,
-            time: 1,
+            time: 1.into(),
             count: 1
         }
     );
@@ -317,7 +323,7 @@ fn should_remember_epochs() -> Result<()> {
         b,
         Timestamp {
             epoch: 1,
-            time: 1,
+            time: 1.into(),
             count: 2
         }
     );
@@ -330,7 +336,7 @@ fn should_use_time_from_larger_observed_epoch() -> Result<()> {
 
     let advanced_epoch = Timestamp {
         epoch: 100,
-        time: 1,
+        time: 1.into(),
         count: 0,
     };
     let t = observing(&mut clock0, &advanced_epoch).unwrap();
@@ -338,7 +344,7 @@ fn should_use_time_from_larger_observed_epoch() -> Result<()> {
         t,
         Timestamp {
             epoch: 100,
-            time: 1,
+            time: 1.into(),
             count: 1
         }
     );
@@ -347,7 +353,7 @@ fn should_use_time_from_larger_observed_epoch() -> Result<()> {
 
 #[test]
 fn supposedly_be_larger_than_observed_time() {
-    property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| -> Result<()> {
+    property((u64s(), timestamps(manualts()))).check(|(t0, advanced_epoch)| -> Result<()> {
         let mut clock0 = Clock::manual(t0)?;
         let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
         println!("t0: {:?}; 👀: {:?} => {:?}", t0, advanced_epoch, t2);
@@ -358,7 +364,7 @@ fn supposedly_be_larger_than_observed_time() {
 
 #[test]
 fn supposedly_be_larger_than_observed_clock() {
-    property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| -> Result<()> {
+    property((u64s(), timestamps(manualts()))).check(|(t0, advanced_epoch)| -> Result<()> {
         let mut clock0 = Clock::manual(t0)?;
         let t1 = clock0.now()?;
         let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
@@ -375,7 +381,7 @@ fn should_ignore_clocks_too_far_forward() -> Result<()> {
     assert!(clock
         .observe(&Timestamp {
             epoch: 0,
-            time: 11,
+            time: 11.into(),
             count: 0
         })
         .is_err());
@@ -383,7 +389,7 @@ fn should_ignore_clocks_too_far_forward() -> Result<()> {
     clock
         .observe(&Timestamp {
             epoch: 0,
-            time: 1,
+            time: 1.into(),
             count: 0,
         })
         .unwrap();
@@ -391,7 +397,7 @@ fn should_ignore_clocks_too_far_forward() -> Result<()> {
         clock.now().expect("now"),
         Timestamp {
             epoch: 0,
-            time: 1,
+            time: 1.into(),
             count: 1
         }
     );
@@ -407,7 +413,7 @@ fn should_account_for_time_passing_when_checking_max_error() -> Result<()> {
     assert!(clock
         .observe(&Timestamp {
             epoch: 0,
-            time: 11,
+            time: 11.into(),
             count: 0
         })
         .is_ok());
@@ -424,7 +430,7 @@ fn should_observe_past_timestamp() -> Result<()> {
     assert!(clock
         .observe(&Timestamp {
             epoch: 0,
-            time: 9,
+            time: 9.into(),
             count: 0
         })
         .is_ok());
@@ -437,7 +443,7 @@ mod serde {
 
     #[test]
     fn should_round_trip_via_serde() {
-        property(timestamps(u64s())).check(|ts| {
+        property(timestamps(manualts())).check(|ts| {
             let s = serde_json::to_string(&ts).expect("to-json");
             let ts2 = serde_json::from_str(&s).expect("from-json");
             ts == ts2
