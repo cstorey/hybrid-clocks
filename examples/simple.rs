@@ -6,7 +6,7 @@ fn main() -> Result<()> {
 
     let b0 = clock_b.now()?;
     let a0 = clock_a.now()?;
-    let () = clock_a.observe(&b0)?;
+    let () = clock_a.observe(&b0);
     let a1 = clock_a.now()?;
 
     println!("b0: {:?} / {}", b0, b0);
