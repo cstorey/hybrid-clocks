@@ -39,20 +39,17 @@ impl WallMST {
     /// The number of ticks per seconds: 2^(-16).
     pub const TICKS_PER_SEC: u64 = 1 << 16;
     /// Returns the `Duration` since the unix epoch.
-    pub fn duration_since_epoch(self) -> Result<Duration> {
+    pub fn duration_since_epoch(self) -> Duration {
         let secs = self.0 / Self::TICKS_PER_SEC;
         let minor_ticks = self.0 % Self::TICKS_PER_SEC;
         let nsecs = minor_ticks * NANOS_PER_SEC / Self::TICKS_PER_SEC;
         assert!(nsecs < 1_000_000_000, "Internal arithmetic error");
-        Ok(Duration::new(
-            secs,
-            nsecs.try_into().expect("internal error"),
-        ))
+        Duration::new(secs, nsecs.try_into().expect("internal error"))
     }
 
     /// Returns a `SystemTime` representing this timestamp.
-    pub fn as_systemtime(self) -> Result<SystemTime> {
-        Ok(SystemTime::UNIX_EPOCH + self.duration_since_epoch()?)
+    pub fn as_systemtime(self) -> SystemTime {
+        SystemTime::UNIX_EPOCH + self.duration_since_epoch()
     }
 
     /// Returns a `WallMST` representing the `SystemTime`.
@@ -103,26 +100,19 @@ impl ClockSource for WallMS {
 impl fmt::Display for WallMST {
     #[cfg(not(feature = "pretty-print"))]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.duration_since_epoch() {
-            Ok(epoch) => write!(fmt, "{}", epoch.as_secs_f64()),
-            Err(e) => write!(fmt, "{}", e),
-        }
+        write!(fmt, "{}", self.duration_since_epoch().as_secs_f64())
     }
 
     #[cfg(feature = "pretty-print")]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.as_systemtime() {
-            Ok(ts) => {
-                let st = time::PrimitiveDateTime::from(ts);
-                write!(
-                    fmt,
-                    "{}.{:09}Z",
-                    st.format("%Y-%m-%dT%H:%M:%S"),
-                    st.nanosecond(),
-                )
-            }
-            Err(e) => write!(fmt, "{}", e),
-        }
+        let ts = self.as_systemtime();
+        let st = time::PrimitiveDateTime::from(ts);
+        write!(
+            fmt,
+            "{}.{:09}Z",
+            st.format("%Y-%m-%dT%H:%M:%S"),
+            st.nanosecond(),
+        )
     }
 }
 
@@ -155,7 +145,7 @@ mod tests {
         let allowable_error = WallMST::TICKS_PER_SEC / 1000 / 2;
 
         property(wallclocks2()).check(|wc| {
-            let tsp = wc.as_systemtime().expect("wall time");
+            let tsp = wc.as_systemtime();
             let wc2 = WallMST::from_timespec(tsp).expect("from time");
             let diff = wc.0 - wc2.0;
             assert!(
@@ -174,8 +164,8 @@ mod tests {
         property((wallclocks2(), wallclocks2())).check(|(ta, tb)| {
             use std::cmp::Ord;
 
-            let ba = ta.as_systemtime().expect("wall time");
-            let bb = tb.as_systemtime().expect("wall time");
+            let ba = ta.as_systemtime();
+            let bb = tb.as_systemtime();
             ta.cmp(&tb) == ba.cmp(&bb)
         })
     }
