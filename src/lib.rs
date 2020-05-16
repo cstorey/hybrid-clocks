@@ -79,14 +79,14 @@ impl Clock<WallNS> {
 }
 
 impl Clock<WallMS> {
-    /// Returns a `Clock` that uses WallNS-clock time.
+    /// Returns a `Clock` that uses WallMS-clock time.
     pub fn wall_ms() -> Result<Clock<WallMS>> {
         Clock::new(WallMS)
     }
 }
 
 impl Clock<ManualClock> {
-    /// Returns a `Clock` that uses WallNS-clock time.
+    /// Returns a `Clock` that uses ManualClock-clock time.
     pub fn manual(t: u64) -> Result<Clock<ManualClock>> {
         Clock::new(ManualClock::new(t))
     }
