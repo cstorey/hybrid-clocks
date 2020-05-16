@@ -38,7 +38,7 @@ impl Timestamp<WallMST> {
 impl WallMST {
     /// The number of ticks per seconds: 2^(-16).
     pub const TICKS_PER_SEC: u64 = 1 << 16;
-    /// Returns a `SystemTime` representing this timestamp.
+    /// Returns the `Duration` since the unix epoch.
     pub fn duration_since_epoch(self) -> Result<Duration> {
         // TODO: use Duration::from_nanos
         let nanos_per_tick = NANOS_PER_SEC / Self::TICKS_PER_SEC;
@@ -60,6 +60,7 @@ impl WallMST {
         ))
     }
 
+    /// Returns a `SystemTime` representing this timestamp.
     pub fn as_systemtime(self) -> Result<SystemTime> {
         Ok(SystemTime::UNIX_EPOCH + self.duration_since_epoch()?)
     }
@@ -71,6 +72,7 @@ impl WallMST {
         Self::from_since_epoch(since_epoch)
     }
 
+    /// Returns a `WallMST` from a `Duration` since the unix epoch.
     pub fn from_since_epoch(since_epoch: Duration) -> Result<Self> {
         let ticks: u128 = u128::from(Self::TICKS_PER_SEC)
             .checked_mul(since_epoch.as_nanos())
