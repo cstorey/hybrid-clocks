@@ -191,7 +191,7 @@ impl<S: ClockSource> OffsetLimiter<S> {
     fn verify_offset(&self, pt: &Timestamp<S::Time>, msg: &Timestamp<S::Time>) -> Result<()> {
         // Guard from overflow when `S::Time.time` uses unsigned arithmetic.
         if msg.time <= pt.time {
-            return Ok(())
+            return Ok(());
         }
 
         let diff = msg.time - pt.time;
