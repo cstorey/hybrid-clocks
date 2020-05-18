@@ -416,6 +416,23 @@ fn should_account_for_time_passing_when_checking_max_error() -> Result<()> {
     Ok(())
 }
 
+// Unsigned overflow made `clock.observe(past_timestamp)` to return an
+// `OffsetTooGreat` error in release mode and a panic in debug mode.
+#[test]
+fn should_observe_past_timestamp() -> Result<()> {
+    let src = ManualClock::new(10);
+    let mut clock = Clock::new(src)?.with_max_diff(2);
+
+    assert!(clock
+        .observe(&Timestamp {
+            epoch: 0,
+            time: 9,
+            count: 0
+        })
+        .is_ok());
+    Ok(())
+}
+
 #[cfg(feature = "serialization")]
 mod serde {
     use super::*;
