@@ -2,7 +2,7 @@ use hybrid_clocks::{Clock, ManualClock, Result, Timestamp};
 use suppositions::generators::*;
 use suppositions::*;
 
-fn observing<'a>(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result<Timestamp<u64>> {
+fn observing(clock: &mut Clock<ManualClock>, msg: &Timestamp<u64>) -> Result<Timestamp<u64>> {
     clock.observe(msg);
     Ok(clock.now()?)
 }
@@ -346,7 +346,7 @@ fn should_use_time_from_larger_observed_epoch() -> Result<()> {
 }
 
 #[test]
-fn supposedly_be_larger_than_observed_time() -> Result<()> {
+fn supposedly_be_larger_than_observed_time() {
     property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| -> Result<()> {
         let mut clock0 = Clock::manual(t0)?;
         let t2 = observing(&mut clock0, &advanced_epoch).unwrap();
@@ -354,11 +354,10 @@ fn supposedly_be_larger_than_observed_time() -> Result<()> {
         assert!(t2 > advanced_epoch, "{:?} > {:?}", t2, advanced_epoch);
         Ok(())
     });
-    Ok(())
 }
 
 #[test]
-fn supposedly_be_larger_than_observed_clock() -> Result<()> {
+fn supposedly_be_larger_than_observed_clock() {
     property((u64s(), timestamps(u64s()))).check(|(t0, advanced_epoch)| -> Result<()> {
         let mut clock0 = Clock::manual(t0)?;
         let t1 = clock0.now()?;
@@ -367,7 +366,6 @@ fn supposedly_be_larger_than_observed_clock() -> Result<()> {
         assert!(t2 > t1, "{:?} > {:?}", t2, t1);
         Ok(())
     });
-    Ok(())
 }
 
 #[test]
@@ -436,14 +434,13 @@ fn should_observe_past_timestamp() -> Result<()> {
 #[cfg(feature = "serialization")]
 mod serde {
     use super::*;
-    use serde_json;
+
     #[test]
-    fn should_round_trip_via_serde() -> Result<()> {
+    fn should_round_trip_via_serde() {
         property(timestamps(u64s())).check(|ts| {
             let s = serde_json::to_string(&ts).expect("to-json");
             let ts2 = serde_json::from_str(&s).expect("from-json");
             ts == ts2
         });
-        Ok(())
     }
 }
