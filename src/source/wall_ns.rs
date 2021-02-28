@@ -85,7 +85,7 @@ impl fmt::Display for WallNST {
 impl Timestamp<WallNST> {
     pub fn write_bytes<W: io::Write>(&self, mut wr: W) -> std::result::Result<(), io::Error> {
         wr.write_all(&self.to_bytes())?;
-        return Ok(());
+        Ok(())
     }
 
     pub fn to_bytes(&self) -> [u8; 16] {
@@ -93,7 +93,7 @@ impl Timestamp<WallNST> {
         res[0..4].copy_from_slice(&self.epoch.to_be_bytes());
         res[4..12].copy_from_slice(&self.time.0.to_be_bytes());
         res[12..16].copy_from_slice(&self.count.to_be_bytes());
-        return res;
+        res
     }
 
     pub fn read_bytes<R: io::Read>(mut r: R) -> std::result::Result<Self, io::Error> {
@@ -107,9 +107,9 @@ impl Timestamp<WallNST> {
         let nanos = u64::from_be_bytes(bytes[4..12].try_into().unwrap());
         let count = u32::from_be_bytes(bytes[12..16].try_into().unwrap());
         Timestamp {
-            epoch: epoch,
+            epoch,
             time: WallNST::of_nanos(nanos),
-            count: count,
+            count,
         }
     }
 }
@@ -126,13 +126,13 @@ pub mod v1 {
 
     impl From<super::WallNST> for WallNST {
         fn from(v2: super::WallNST) -> Self {
-            return WallNST(v2.0);
+            WallNST(v2.0)
         }
     }
 
     impl From<WallNST> for super::WallNST {
         fn from(v1: WallNST) -> super::WallNST {
-            return super::WallNST(v1.0);
+            super::WallNST(v1.0)
         }
     }
 
@@ -140,7 +140,7 @@ pub mod v1 {
         fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
             let mut tuple_state = serializer.serialize_tuple_struct("WallNST", 1usize)?;
             tuple_state.serialize_field(&self.0)?;
-            return tuple_state.end();
+            tuple_state.end()
         }
     }
 
@@ -229,7 +229,6 @@ mod tests {
     #[cfg(feature = "serialization")]
     mod serde {
         use super::*;
-        use serde_json;
         #[test]
         fn should_round_trip_via_serde() {
             property(timestamps(wallclocks_ns())).check(|ts| {

@@ -9,7 +9,7 @@ pub use self::manual::*;
 pub use self::wall_ns::*;
 use crate::Result;
 
-const NANOS_PER_SEC: u64 = 1000_000_000;
+const NANOS_PER_SEC: u64 = 1_000_000_000;
 
 /// Describes the interface that the inner clock source must provide.
 pub trait ClockSource {

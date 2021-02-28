@@ -20,7 +20,7 @@ impl Timestamp<WallMST> {
         res[0..4].copy_from_slice(&self.epoch.to_be_bytes());
         res[4..12].copy_from_slice(&self.time.0.to_be_bytes());
         res[12..16].copy_from_slice(&self.count.to_be_bytes());
-        return res;
+        res
     }
 
     pub fn from_bytes(bytes: [u8; 16]) -> Self {
@@ -28,9 +28,9 @@ impl Timestamp<WallMST> {
         let nanos = u64::from_be_bytes(bytes[4..12].try_into().unwrap());
         let count = u32::from_be_bytes(bytes[12..16].try_into().unwrap());
         Timestamp {
-            epoch: epoch,
+            epoch,
             time: WallMST(nanos),
-            count: count,
+            count,
         }
     }
 }
@@ -45,7 +45,7 @@ impl WallMST {
         let secs = self.0 / Self::TICKS_PER_SEC;
         let minor_ticks = self.0 % Self::TICKS_PER_SEC;
         let nsecs = minor_ticks * nanos_per_tick;
-        assert!(nsecs < 1000_000_000, "Internal arithmetic error");
+        assert!(nsecs < 1_000_000_000, "Internal arithmetic error");
         Duration::new(secs, nsecs.try_into().expect("internal error"));
 
         let nanos = u128::from(self.0)
@@ -54,9 +54,7 @@ impl WallMST {
             / u128::from(Self::TICKS_PER_SEC);
 
         Ok(Duration::from_nanos(
-            nanos
-                .try_into()
-                .map_err(|_| Error::SupportedTime(nanos.into()))?,
+            nanos.try_into().map_err(|_| Error::SupportedTime(nanos))?,
         ))
     }
 

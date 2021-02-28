@@ -100,7 +100,7 @@ impl<S: ClockSource> Clock<S> {
     pub fn new(mut src: S) -> Result<Self> {
         let init = src.now()?;
         let clock = Clock {
-            src: src,
+            src,
             last_observed: Timestamp {
                 epoch: 0,
                 time: init,
@@ -132,14 +132,14 @@ impl<S: ClockSource> Clock<S> {
     }
 
     fn do_observe(&mut self, observation: &Timestamp<S::Time>) {
-        let lp = self.last_observed.clone();
+        let lp = self.last_observed;
 
         self.last_observed = match (
             lp.epoch.cmp(&observation.epoch),
             lp.time.cmp(&observation.time),
             lp.count.cmp(&observation.count),
         ) {
-            (Ordering::Less, _, _) | (Ordering::Equal, Ordering::Less, _) => observation.clone(),
+            (Ordering::Less, _, _) | (Ordering::Equal, Ordering::Less, _) => *observation,
             (Ordering::Equal, Ordering::Equal, Ordering::Less) => Timestamp {
                 count: observation.count + 1,
                 ..lp
