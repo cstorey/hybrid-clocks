@@ -34,7 +34,7 @@ jobs:
           upstream=${CIRCLE_REPOSITORY_URL:-$(git remote  get-url origin)}
           git config --global user.email "circleci@invalid.example"
           git config --global user.name "CircleCI build for ${upstream}"
-          git merge master
+          git merge main
       - run: rustup component add rustfmt
       - run: rustfmt --version
       - run: cargo fmt --all -- --check
