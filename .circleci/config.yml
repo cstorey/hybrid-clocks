@@ -37,7 +37,7 @@ jobs:
           git merge --no-edit --no-ff origin/main
       - run: rustup component add rustfmt
       - run: rustfmt --version
-      - run: cargo fmt --all -- --check
+      - run: cargo fmt -- --check
       - *RESTORE_REGISTRY
       - run: cargo generate-lockfile
       - *SAVE_REGISTRY
