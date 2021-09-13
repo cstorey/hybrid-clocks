@@ -3,6 +3,9 @@ use std::fmt;
 use std::ops::Sub;
 use std::time::{Duration, SystemTime};
 
+#[cfg(feature = "pretty-print")]
+use time::format_description::well_known::Rfc3339;
+
 use super::{ClockSource, NANOS_PER_SEC};
 use crate::{Error, Result, Timestamp};
 
@@ -110,7 +113,7 @@ impl fmt::Display for WallMST {
         write!(
             fmt,
             "{}.{:09}Z",
-            st.format("%Y-%m-%dT%H:%M:%S"),
+            st.format(&Rfc3339).expect("format"),
             st.nanosecond(),
         )
     }
