@@ -106,7 +106,7 @@ impl fmt::Display for WallMST {
     #[cfg(feature = "pretty-print")]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ts = self.as_systemtime();
-        let st = time::PrimitiveDateTime::from(ts);
+        let st = time::OffsetDateTime::from(ts);
         write!(
             fmt,
             "{}.{:09}Z",
