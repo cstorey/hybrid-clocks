@@ -7,7 +7,7 @@ fn observing(
     msg: &Timestamp<ManualT>,
 ) -> Result<Timestamp<ManualT>> {
     clock.observe(msg);
-    Ok(clock.now()?)
+    clock.now()
 }
 
 pub fn timestamps<C: Generator + 'static>(

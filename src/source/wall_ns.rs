@@ -256,7 +256,7 @@ mod tests {
         #[test]
         fn should_deserialize_v1() {
             let s = "[0,[1558805131923316000],0]";
-            let ts = serde_json::from_str::<Timestamp<v1::WallNST>>(&s)
+            let ts = serde_json::from_str::<Timestamp<v1::WallNST>>(s)
                 .expect("from-json")
                 .time_into();
 
