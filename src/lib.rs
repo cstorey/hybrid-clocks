@@ -156,7 +156,7 @@ impl<S: ClockSource> Clock<S> {
     /// `happens-after` either locally generated timestamps or that of the
     /// input message.
     pub fn observe(&mut self, msg: &Timestamp<S::Time>) {
-        self.do_observe(&msg);
+        self.do_observe(msg);
     }
 
     fn read_pt(&mut self) -> Result<Timestamp<S::Time>> {
@@ -179,7 +179,7 @@ impl<S: ClockSource> OffsetLimiter<S> {
     pub fn observe(&mut self, msg: &Timestamp<S::Time>) -> Result<()> {
         let pt = self.clock.read_pt()?;
         self.verify_offset(&pt, msg)?;
-        self.clock.observe(&msg);
+        self.clock.observe(msg);
         Ok(())
     }
 
