@@ -4,6 +4,9 @@ use std::io;
 use std::ops::Sub;
 use std::time::{Duration, SystemTime};
 
+#[cfg(feature = "pretty-print")]
+use time::format_description::well_known::Rfc3339;
+
 use super::ClockSource;
 use crate::{Result, Timestamp};
 
@@ -72,11 +75,11 @@ impl fmt::Display for WallNST {
 
     #[cfg(feature = "pretty-print")]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let st = time::PrimitiveDateTime::from(self.as_systemtime());
+        let st = time::OffsetDateTime::from(self.as_systemtime());
         write!(
             fmt,
             "{}.{:09}Z",
-            st.format("%Y-%m-%dT%H:%M:%S"),
+            st.format(&Rfc3339).expect("format"),
             st.nanosecond(),
         )
     }
@@ -253,7 +256,7 @@ mod tests {
         #[test]
         fn should_deserialize_v1() {
             let s = "[0,[1558805131923316000],0]";
-            let ts = serde_json::from_str::<Timestamp<v1::WallNST>>(&s)
+            let ts = serde_json::from_str::<Timestamp<v1::WallNST>>(s)
                 .expect("from-json")
                 .time_into();
 
